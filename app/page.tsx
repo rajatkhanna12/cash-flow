@@ -21,11 +21,11 @@ import {
   PieChart,
   Calendar,
   Sparkles,
-  ArrowRight,
-  Flame,
-  LayoutGrid
+  BarChart3,
+  Clock,
+  ArrowRight
 } from 'lucide-react';
-import { Transaction, CashFlowStats, CategoryBudget } from '@/lib/types';
+import { Transaction, CashFlowStats, CategoryBudget, ReportingPeriod } from '@/lib/types';
 
 const SAMPLE_SMS_TEMPLATES = [
   {
@@ -54,14 +54,26 @@ const SAMPLE_SMS_TEMPLATES = [
   }
 ];
 
+const PERIOD_OPTIONS: Array<{ key: ReportingPeriod; label: string }> = [
+  { key: 'today', label: 'Aaj (Today)' },
+  { key: 'week', label: 'Is Hafte' },
+  { key: 'month', label: 'Is Mahine (Nov)' },
+  { key: 'last_month', label: 'Pichla Mahina (Oct)' },
+  { key: '2_months_ago', label: '2 Mahine Pehle (Sep)' },
+  { key: 'all', label: 'Sabhi (All Time)' },
+];
+
 export default function CashFlowApp() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [stats, setStats] = useState<CashFlowStats | null>(null);
   const [budgets, setBudgets] = useState<CategoryBudget[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'flow' | 'budgets' | 'simulator' | 'iphone-setup'>('flow');
+  const [activeTab, setActiveTab] = useState<'flow' | 'reporting' | 'budgets' | 'simulator' | 'iphone-setup'>('flow');
 
-  // Search & Filter
+  // Time Period Filter
+  const [selectedPeriod, setSelectedPeriod] = useState<ReportingPeriod>('month');
+
+  // Search & Type Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'inflow' | 'outflow'>('all');
 
@@ -83,12 +95,12 @@ export default function CashFlowApp() {
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = async (period: ReportingPeriod = selectedPeriod) => {
     try {
       setLoading(true);
       const [txRes, statsRes, budgetRes] = await Promise.all([
-        fetch('/api/transactions'),
-        fetch('/api/stats'),
+        fetch(`/api/transactions?period=${period}`),
+        fetch(`/api/stats?period=${period}`),
         fetch('/api/budgets')
       ]);
 
@@ -107,8 +119,12 @@ export default function CashFlowApp() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(selectedPeriod);
+  }, [selectedPeriod]);
+
+  const handlePeriodChange = (period: ReportingPeriod) => {
+    setSelectedPeriod(period);
+  };
 
   const handleSimulate = async (smsText: string) => {
     try {
@@ -126,7 +142,7 @@ export default function CashFlowApp() {
       const data = await res.json();
       setSimulatorResult(data);
       if (data.success) {
-        await fetchData();
+        await fetchData(selectedPeriod);
       }
     } catch (err: any) {
       setSimulatorResult({ success: false, error: err.message });
@@ -155,7 +171,7 @@ export default function CashFlowApp() {
           category: 'Food & Dining',
           notes: ''
         });
-        await fetchData();
+        await fetchData(selectedPeriod);
       }
     } catch (err) {
       console.error(err);
@@ -168,7 +184,7 @@ export default function CashFlowApp() {
       const res = await fetch(`/api/transactions?id=${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
-        await fetchData();
+        await fetchData(selectedPeriod);
       }
     } catch (err) {
       console.error(err);
@@ -202,7 +218,7 @@ export default function CashFlowApp() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans pb-24">
-      {/* 📱 MOBILE APP HEADER */}
+      {/* 📱 TOP APP BAR */}
       <header className="bg-white border-b border-slate-200/90 sticky top-0 z-30 shadow-xs">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
@@ -211,12 +227,12 @@ export default function CashFlowApp() {
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="font-bold text-slate-900 text-sm tracking-tight">CashFlow</h1>
+                <h1 className="font-bold text-slate-900 text-sm tracking-tight">CashFlow Guard</h1>
                 <span className="text-[9px] font-semibold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded-full border border-emerald-200">
                   Live
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400">Monthly Cash Tracking</p>
+              <p className="text-[10px] text-slate-400">Reports & Expense Control</p>
             </div>
           </div>
 
@@ -229,7 +245,7 @@ export default function CashFlowApp() {
               <span>Naya Add</span>
             </button>
             <button
-              onClick={fetchData}
+              onClick={() => fetchData(selectedPeriod)}
               title="Refresh"
               className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 active:scale-95 transition"
             >
@@ -237,12 +253,40 @@ export default function CashFlowApp() {
             </button>
           </div>
         </div>
+
+        {/* ⏱️ TIME PERIOD HORIZONTAL FILTER BAR */}
+        <div className="max-w-lg mx-auto px-3 py-2 overflow-x-auto flex items-center gap-1.5 border-t border-slate-100 no-scrollbar">
+          {PERIOD_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              onClick={() => handlePeriodChange(opt.key)}
+              className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold transition ${
+                selectedPeriod === opt.key
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </header>
 
-      {/* 📱 MAIN CONTENT (Mobile Container) */}
-      <main className="max-w-lg mx-auto px-4 py-4 w-full space-y-4 flex-1">
-        {/* OVERSPENDING WARNING PILL */}
-        {stats && stats.alerts.length > 0 && (
+      {/* 📱 MAIN VIEW */}
+      <main className="max-w-lg mx-auto px-4 py-3 w-full space-y-4 flex-1">
+        {/* PERIOD INDICATOR BANNER */}
+        <div className="flex items-center justify-between text-xs text-slate-500 bg-white/70 px-3 py-1.5 rounded-xl border border-slate-200/60">
+          <span className="font-semibold text-slate-700 flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5 text-emerald-600" />
+            Showing: {stats?.periodLabel || 'Is Mahine'}
+          </span>
+          <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-md font-bold text-slate-600">
+            {stats?.transactionCount || 0} Transactions
+          </span>
+        </div>
+
+        {/* OVERSPENDING ALERT (CURRENT MONTH) */}
+        {selectedPeriod === 'month' && stats && stats.alerts.length > 0 && (
           <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 shadow-xs space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
@@ -255,12 +299,12 @@ export default function CashFlowApp() {
                 onClick={() => setActiveTab('budgets')}
                 className="text-[11px] font-bold text-rose-700 underline"
               >
-                Rokne Ke Targets →
+                Limits Set Karein →
               </button>
             </div>
             <div className="space-y-1">
               {stats.alerts.map(a => (
-                <div key={a.category} className="flex justify-between items-center text-[11px] text-rose-800 bg-white/70 px-2 py-1 rounded-md border border-rose-100">
+                <div key={a.category} className="flex justify-between items-center text-[11px] text-rose-800 bg-white/80 px-2 py-1 rounded-md border border-rose-100">
                   <span className="font-semibold">{a.category}</span>
                   <span>{a.percentage}% used ({formatCurrency(a.spent)} / {formatCurrency(a.limit)})</span>
                 </div>
@@ -269,16 +313,15 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 📊 TAB 1: FLOW (HOME) */}
+        {/* 📊 TAB 1: FLOW & SUMMARY FOR SELECTED PERIOD */}
         {activeTab === 'flow' && (
           <div className="space-y-4">
-            {/* HERO CASH FLOW CARD */}
+            {/* HERO CASH FLOW CARD FOR CHOSEN PERIOD */}
             <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3.5">
-              {/* TOP: NET CASH FLOW (BACHA) */}
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    Net Bacha (Savings)
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Net Cash Flow ({stats?.periodLabel})
                   </span>
                   <div className={`text-2xl font-extrabold tracking-tight mt-0.5 ${net >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                     {stats ? formatCurrency(stats.netCashFlow) : '₹0'}
@@ -291,38 +334,36 @@ export default function CashFlowApp() {
                 </div>
               </div>
 
-              {/* MIDDLE: 2 COLUMN SPLIT (AAYA vs GAYA) */}
+              {/* AAYA vs GAYA 2-COLUMN SPLIT */}
               <div className="grid grid-cols-2 gap-2.5">
-                {/* Kul Aaya (Inflow) */}
                 <div className="bg-emerald-50/70 border border-emerald-200/70 rounded-xl p-2.5">
                   <div className="flex items-center justify-between text-emerald-800">
-                    <span className="text-[10px] font-bold uppercase tracking-wider">Kul Aaya</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Kul Aaya (Inflow)</span>
                     <ArrowUpRight className="h-3.5 w-3.5" />
                   </div>
                   <div className="text-base font-extrabold text-emerald-950 mt-1">
                     {stats ? formatCurrency(stats.totalInflow) : '₹0'}
                   </div>
-                  <p className="text-[10px] text-emerald-700 mt-0.5">Salary & credits</p>
+                  <p className="text-[10px] text-emerald-700 mt-0.5">Is time period mein</p>
                 </div>
 
-                {/* Kul Gaya (Outflow) */}
                 <div className="bg-rose-50/70 border border-rose-200/70 rounded-xl p-2.5">
                   <div className="flex items-center justify-between text-rose-800">
-                    <span className="text-[10px] font-bold uppercase tracking-wider">Kul Gaya</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Kul Gaya (Outflow)</span>
                     <ArrowDownRight className="h-3.5 w-3.5" />
                   </div>
                   <div className="text-base font-extrabold text-rose-950 mt-1">
                     {stats ? formatCurrency(stats.totalOutflow) : '₹0'}
                   </div>
-                  <p className="text-[10px] text-rose-700 mt-0.5">{expensePercentage}% kharch hua</p>
+                  <p className="text-[10px] text-rose-700 mt-0.5">{expensePercentage}% of income</p>
                 </div>
               </div>
 
               {/* FLOW PROPORTION BAR */}
               <div className="space-y-1.5 pt-1">
                 <div className="flex justify-between text-[11px] font-semibold text-slate-500">
-                  <span className="text-rose-600">Kharch: {expensePercentage}%</span>
-                  <span className="text-emerald-700">Bachat: {savingsPercentage}%</span>
+                  <span className="text-rose-600">Kharch: {expensePercentage}% ({formatCurrency(outflow)})</span>
+                  <span className="text-emerald-700">Bachat: {savingsPercentage}% ({formatCurrency(net)})</span>
                 </div>
                 <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/80">
                   <div
@@ -341,63 +382,73 @@ export default function CashFlowApp() {
               </div>
             </div>
 
-            {/* QUICK CATEGORY SPENDING PREVIEW */}
+            {/* MONTH-ON-MONTH COMPARISON (If viewing Current Month) */}
+            {stats?.comparison && (
+              <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-3.5 text-xs text-blue-900 flex items-center justify-between">
+                <div>
+                  <span className="font-bold block text-blue-950">Pichle Mahine Se Muqabla (Oct vs Nov):</span>
+                  <p className="text-[11px] text-blue-800 mt-0.5">
+                    {stats.comparison.isHigher
+                      ? `Pichle mahine se ₹${stats.comparison.diffAmount} (+${stats.comparison.percentageChange}%) zyada kharch hua hai.`
+                      : `Pichle mahine se ₹${stats.comparison.diffAmount} (-${stats.comparison.percentageChange}%) kam kharch hua hai! Bachat achi hai.`}
+                  </p>
+                </div>
+                <span className="text-base">
+                  {stats.comparison.isHigher ? '📈' : '🎉'}
+                </span>
+              </div>
+            )}
+
+            {/* CATEGORY BREAKDOWN FOR CHOSEN TIME PERIOD */}
             <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <PieChart className="h-3.5 w-3.5 text-emerald-600" />
-                  Top Expense Budgets
+                  <BarChart3 className="h-3.5 w-3.5 text-emerald-600" />
+                  Kharch Ka Batwara ({stats?.periodLabel})
                 </span>
-                <button
-                  onClick={() => setActiveTab('budgets')}
-                  className="text-xs font-semibold text-emerald-600"
-                >
-                  Sabhi Dekhein →
-                </button>
+                <span className="text-[10px] text-slate-400 font-bold">Category Wise</span>
               </div>
 
               <div className="space-y-2.5">
-                {budgets.slice(0, 4).map(b => {
-                  const spent = stats?.categorySpending[b.category] || 0;
-                  const percent = Math.min(100, Math.round((spent / b.monthly_limit) * 100));
-                  const isExceeded = spent > b.monthly_limit;
-                  const isWarning = percent >= 80 && !isExceeded;
-
-                  return (
-                    <div key={b.category} className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="font-semibold text-slate-800">{b.category}</span>
-                        <span className="text-[11px] text-slate-500">
-                          <strong className={isExceeded ? 'text-rose-600' : isWarning ? 'text-amber-600' : 'text-slate-900'}>
-                            {formatCurrency(spent)}
-                          </strong> / {formatCurrency(b.monthly_limit)}
-                        </span>
-                      </div>
-                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            isExceeded ? 'bg-rose-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'
-                          }`}
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+                {stats && Object.keys(stats.categorySpending).length === 0 ? (
+                  <p className="text-xs text-slate-400 py-3 text-center">Is time period mein koi kharch nahi hua.</p>
+                ) : (
+                  stats &&
+                  Object.entries(stats.categorySpending)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([cat, spent]) => {
+                      const pct = stats.categoryPercentages[cat] || 0;
+                      return (
+                        <div key={cat} className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="font-semibold text-slate-800">{cat}</span>
+                            <span className="text-[11px] text-slate-600">
+                              <strong className="text-slate-900">{formatCurrency(spent)}</strong> ({pct}% of total)
+                            </span>
+                          </div>
+                          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="bg-slate-800 h-full rounded-full transition-all duration-300"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                )}
               </div>
             </div>
 
-            {/* RECENT TRANSACTIONS (MOBILE LIST) */}
+            {/* TRANSACTIONS FILTERED BY TIME PERIOD */}
             <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <div>
                   <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Recent Transactions
+                    Transactions ({stats?.periodLabel})
                   </h2>
-                  <p className="text-[10px] text-slate-400">SMS & UPI Payments</p>
+                  <p className="text-[10px] text-slate-400">Is period ki entry list</p>
                 </div>
 
-                {/* Filter Selector */}
                 <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-semibold">
                   <button
                     onClick={() => setFilterType('all')}
@@ -420,11 +471,10 @@ export default function CashFlowApp() {
                 </div>
               </div>
 
-              {/* Transactions Items */}
               <div className="divide-y divide-slate-100">
                 {filteredTransactions.length === 0 ? (
                   <div className="text-center py-8 text-xs text-slate-400">
-                    Koi transaction nahi mila.
+                    Is time period mein koi transaction nahi mila.
                   </div>
                 ) : (
                   filteredTransactions.map(tx => (
@@ -477,16 +527,68 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 🛡️ TAB 2: KHARCH CONTROL & BUDGETS */}
+        {/* 📈 TAB 2: DETAILED REPORTING COMPARISON */}
+        {activeTab === 'reporting' && (
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
+            <div className="border-b border-slate-100 pb-2.5">
+              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <BarChart3 className="h-4 w-4 text-emerald-600" />
+                Comprehensive Cash Flow Report
+              </h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Upar time period chun kar aap Today, This Week, Pichla Mahina ya 2 Mahine Pehle ka hisaab dekh sakte hain.
+              </p>
+            </div>
+
+            {/* Period Summary Grid */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-400 uppercase font-bold">Kul Inflow</span>
+                <p className="text-sm font-extrabold text-emerald-700 mt-0.5">{formatCurrency(inflow)}</p>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-400 uppercase font-bold">Kul Outflow</span>
+                <p className="text-sm font-extrabold text-rose-700 mt-0.5">{formatCurrency(outflow)}</p>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-400 uppercase font-bold">Net Bachat</span>
+                <p className={`text-sm font-extrabold mt-0.5 ${net >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>
+                  {formatCurrency(net)}
+                </p>
+              </div>
+            </div>
+
+            {/* Category breakdown table */}
+            <div className="space-y-2 pt-2">
+              <span className="text-xs font-bold text-slate-900">Category Expense Share:</span>
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                {stats &&
+                  Object.entries(stats.categorySpending)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([cat, spent]) => (
+                      <div key={cat} className="flex justify-between items-center p-2.5 text-xs bg-white hover:bg-slate-50">
+                        <div>
+                          <span className="font-semibold text-slate-900">{cat}</span>
+                          <span className="text-[10px] text-slate-400 block">{stats.categoryPercentages[cat]}% of total expense</span>
+                        </div>
+                        <span className="font-bold text-slate-800">{formatCurrency(spent)}</span>
+                      </div>
+                    ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 🛡️ TAB 3: KHARCH CONTROL & BUDGETS */}
         {activeTab === 'budgets' && (
           <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
             <div className="border-b border-slate-100 pb-2.5">
               <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldAlert className="h-4 w-4 text-emerald-600" />
-                Kharch Rokne Ke Limits (Monthly)
+                Monthly Expense Limits (Targets)
               </h2>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                Jab bhi kisi category mein 80% se zyada kharch hoga, system warning de dega taaki be-fizool kharch ruk sake.
+                Har category ka monthly limit set karein. 80% reach hone par warning badge aayega.
               </p>
             </div>
 
@@ -502,7 +604,7 @@ export default function CashFlowApp() {
                       <div>
                         <span className="text-xs font-bold text-slate-900">{b.category}</span>
                         <p className="text-[10px] text-slate-500">
-                          Spent: <strong className={isExceeded ? 'text-rose-600' : 'text-slate-800'}>{formatCurrency(spent)}</strong> ({percent}%)
+                          Kharch: <strong className={isExceeded ? 'text-rose-600' : 'text-slate-800'}>{formatCurrency(spent)}</strong> ({percent}%)
                         </p>
                       </div>
                       <div className="flex items-center space-x-1">
@@ -540,7 +642,7 @@ export default function CashFlowApp() {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ budgets })
                 });
-                await fetchData();
+                await fetchData(selectedPeriod);
                 alert('Limits successfully save ho gayi hain!');
               }}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs transition"
@@ -550,22 +652,21 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 🧪 TAB 3: SMS TESTER */}
+        {/* 🧪 TAB 4: SMS TESTER */}
         {activeTab === 'simulator' && (
           <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3.5">
             <div>
               <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                 <Sparkles className="h-4 w-4 text-amber-500" />
-                Bank SMS Tester
+                Bank SMS Parser Tester
               </h2>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                Kisi bhi bank ka SMS paste karke live test karein.
+                Bank ya UPI SMS paste karke live test karein.
               </p>
             </div>
 
-            {/* Quick Templates */}
             <div className="space-y-1">
-              <span className="text-[10px] text-slate-400 font-bold uppercase">Quick Sample:</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase">Quick Samples:</span>
               <div className="flex flex-wrap gap-1.5">
                 {SAMPLE_SMS_TEMPLATES.map((sample, idx) => (
                   <button
@@ -582,7 +683,6 @@ export default function CashFlowApp() {
               </div>
             </div>
 
-            {/* Textarea */}
             <textarea
               rows={3}
               placeholder="Bank transaction SMS yahan paste karein..."
@@ -629,20 +729,19 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 📱 TAB 4: IPHONE SETUP GUIDE */}
+        {/* 📱 TAB 5: IPHONE SETUP GUIDE */}
         {activeTab === 'iphone-setup' && (
           <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
             <div className="border-b border-slate-100 pb-2.5">
               <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                 <Smartphone className="h-4 w-4 text-sky-600" />
-                iPhone Shortcut Setup (2 Minutes)
+                iPhone Shortcuts Automation Setup
               </h2>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                Ek baar shortcut set kar lijiye, uske baad har bank SMS aate hi background mein sync ho jayega.
+                2 minute mein setup karein taaki har SMS turant dashboard mein aa jaye.
               </p>
             </div>
 
-            {/* Step 1 */}
             <div className="space-y-1">
               <span className="text-xs font-bold text-slate-900">1. Shortcuts App kholiye</span>
               <p className="text-[11px] text-slate-500">
@@ -650,7 +749,6 @@ export default function CashFlowApp() {
               </p>
             </div>
 
-            {/* Step 2 */}
             <div className="space-y-1">
               <span className="text-xs font-bold text-slate-900">2. Trigger: Message</span>
               <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[11px] text-slate-700 space-y-1">
@@ -659,7 +757,6 @@ export default function CashFlowApp() {
               </div>
             </div>
 
-            {/* Step 3 */}
             <div className="space-y-2">
               <span className="text-xs font-bold text-slate-900">3. Action: Get Contents of URL</span>
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5 text-xs">
@@ -726,7 +823,7 @@ export default function CashFlowApp() {
 
             <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-900 flex items-center space-x-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-              <span>Setup done! Har bank SMS live dashboard mein aayega.</span>
+              <span>Har bank transaction SMS yahan live auto-sync hoga.</span>
             </div>
           </div>
         )}
@@ -734,7 +831,7 @@ export default function CashFlowApp() {
 
       {/* 📱 NATIVE iOS STYLE FIXED BOTTOM NAVIGATION BAR */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200/90 z-40 shadow-lg">
-        <div className="max-w-lg mx-auto px-4 h-16 flex items-center justify-around">
+        <div className="max-w-lg mx-auto px-2 h-16 flex items-center justify-around">
           <button
             onClick={() => setActiveTab('flow')}
             className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
@@ -743,6 +840,16 @@ export default function CashFlowApp() {
           >
             <Wallet className="h-5 w-5" />
             <span className="text-[10px] mt-1">Cash Flow</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('reporting')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
+              activeTab === 'reporting' ? 'text-emerald-600 font-bold' : 'text-slate-400 font-medium'
+            }`}
+          >
+            <BarChart3 className="h-5 w-5" />
+            <span className="text-[10px] mt-1">Reports</span>
           </button>
 
           <button
@@ -833,7 +940,7 @@ export default function CashFlowApp() {
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-500 block mb-1">Merchant / Recipient</label>
+                <label className="text-[11px] font-semibold text-slate-500 block mb-1">Merchant / Source</label>
                 <input
                   type="text"
                   required

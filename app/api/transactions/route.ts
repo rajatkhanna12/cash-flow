@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions, addTransaction, deleteTransaction } from '@/lib/db';
+import { ReportingPeriod } from '@/lib/types';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const transactions = await getTransactions();
+    const { searchParams } = new URL(req.url);
+    const period = searchParams.get('period') as ReportingPeriod | undefined;
+    const transactions = await getTransactions(period || undefined);
     return NextResponse.json({ success: true, transactions });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

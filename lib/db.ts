@@ -1,8 +1,7 @@
-import { Transaction, CategoryBudget, CashFlowStats } from './types';
+import { Transaction, CategoryBudget, CashFlowStats, ReportingPeriod } from './types';
 import fs from 'fs';
 import path from 'path';
 
-// Default initial category budgets
 export const DEFAULT_BUDGETS: CategoryBudget[] = [
   { category: 'Food & Dining', monthly_limit: 8000 },
   { category: 'Groceries', monthly_limit: 6000 },
@@ -14,107 +13,303 @@ export const DEFAULT_BUDGETS: CategoryBudget[] = [
   { category: 'Other Expenses', monthly_limit: 5000 },
 ];
 
-// Sample seed data to showcase the dashboard
+// Reference current date: 26 Nov 2026
+const NOW = new Date('2026-11-26T10:30:00Z');
+
+// Seed realistic multi-month data: Today, This Week, This Month (Nov 2026), Last Month (Oct 2026), 2 Months Ago (Sep 2026)
 const SEED_TRANSACTIONS: Transaction[] = [
+  // --- TODAY (26 Nov 2026) ---
   {
-    id: 'seed-1',
-    amount: 85000,
-    type: 'inflow',
-    category: 'Salary & Income',
-    merchant: 'Monthly Salary / Client Retainer',
+    id: 'tx-today-1',
+    amount: 480,
+    type: 'outflow',
+    category: 'Food & Dining',
+    merchant: 'Swiggy',
     account: 'A/C **1234',
-    reference: '433100000001',
-    date: new Date(Date.now() - 20 * 86400000).toISOString(),
-    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
-    raw_sms: 'HDFC Bank: Rs 85,000.00 credited to a/c **1234 on 06-Nov-26. Salary Credit.'
+    reference: '433100100001',
+    date: new Date('2026-11-26T08:30:00Z').toISOString(),
+    created_at: new Date('2026-11-26T08:30:00Z').toISOString(),
+    raw_sms: 'Sent Rs.480.00 from HDFC Bank A/C **1234 to SWIGGY on 26-NOV-26.'
   },
   {
-    id: 'seed-2',
+    id: 'tx-today-2',
+    amount: 180,
+    type: 'outflow',
+    category: 'Food & Dining',
+    merchant: 'Chai Point',
+    account: 'A/C **1234',
+    reference: '433100100002',
+    date: new Date('2026-11-26T04:15:00Z').toISOString(),
+    created_at: new Date('2026-11-26T04:15:00Z').toISOString(),
+    raw_sms: 'Paid Rs 180.00 to Chai Point from A/C **1234.'
+  },
+
+  // --- THIS WEEK (20 - 25 Nov 2026) ---
+  {
+    id: 'tx-week-1',
+    amount: 850,
+    type: 'outflow',
+    category: 'Groceries',
+    merchant: 'Blinkit',
+    account: 'A/C **1234',
+    reference: '433100100003',
+    date: new Date('2026-11-24T14:20:00Z').toISOString(),
+    created_at: new Date('2026-11-24T14:20:00Z').toISOString(),
+    raw_sms: 'Sent Rs.850.00 to Blinkit from A/C **1234'
+  },
+  {
+    id: 'tx-week-2',
+    amount: 420,
+    type: 'outflow',
+    category: 'Travel & Fuel',
+    merchant: 'Uber Rides',
+    account: 'A/C **1234',
+    reference: '433100100004',
+    date: new Date('2026-11-23T11:00:00Z').toISOString(),
+    created_at: new Date('2026-11-23T11:00:00Z').toISOString(),
+    raw_sms: 'INR 420.00 debited at UBER INDIA.'
+  },
+  {
+    id: 'tx-week-3',
     amount: 15000,
     type: 'inflow',
     category: 'Salary & Income',
-    merchant: 'Freelance Project Payout',
+    merchant: 'Freelance Payout',
     account: 'A/C **1234',
-    reference: '433100000002',
-    date: new Date(Date.now() - 10 * 86400000).toISOString(),
-    created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
-    raw_sms: 'Your A/C **1234 is credited by Rs 15,000.00 from Upwork VPA.'
+    reference: '433100100005',
+    date: new Date('2026-11-22T09:00:00Z').toISOString(),
+    created_at: new Date('2026-11-22T09:00:00Z').toISOString(),
+    raw_sms: 'Your A/C **1234 is credited by Rs 15,000.00 from Client VPA.'
+  },
+
+  // --- REST OF THIS MONTH (Nov 2026) ---
+  {
+    id: 'tx-nov-1',
+    amount: 85000,
+    type: 'inflow',
+    category: 'Salary & Income',
+    merchant: 'Monthly Salary Credit',
+    account: 'A/C **1234',
+    reference: '433100100006',
+    date: new Date('2026-11-01T04:30:00Z').toISOString(),
+    created_at: new Date('2026-11-01T04:30:00Z').toISOString(),
+    raw_sms: 'HDFC Bank: Rs 85,000.00 credited to a/c **1234. Salary.'
   },
   {
-    id: 'seed-3',
-    amount: 7200,
+    id: 'tx-nov-2',
+    amount: 6540,
     type: 'outflow',
     category: 'Food & Dining',
-    merchant: 'Swiggy & Zomato Orders',
+    merchant: 'Zomato & Dining Out',
     account: 'A/C **1234',
-    reference: '433100000003',
-    date: new Date(Date.now() - 2 * 86400000).toISOString(),
-    created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-    raw_sms: 'Rs 450.00 debited from HDFC A/C **1234 to SWIGGY. Ref 433100000003'
+    reference: '433100100007',
+    date: new Date('2026-11-18T16:00:00Z').toISOString(),
+    created_at: new Date('2026-11-18T16:00:00Z').toISOString(),
   },
   {
-    id: 'seed-4',
-    amount: 5400,
+    id: 'tx-nov-3',
+    amount: 4550,
     type: 'outflow',
     category: 'Groceries',
-    merchant: 'Blinkit & Zepto',
+    merchant: 'Zepto & Instamart',
     account: 'A/C **1234',
-    reference: '433100000004',
-    date: new Date(Date.now() - 4 * 86400000).toISOString(),
-    created_at: new Date(Date.now() - 4 * 86400000).toISOString(),
-    raw_sms: 'Sent Rs. 650.00 to Blinkit from A/C **1234'
+    reference: '433100100008',
+    date: new Date('2026-11-15T10:00:00Z').toISOString(),
+    created_at: new Date('2026-11-15T10:00:00Z').toISOString(),
   },
   {
-    id: 'seed-5',
-    amount: 3200,
-    type: 'outflow',
-    category: 'Travel & Fuel',
-    merchant: 'Uber Rides & Petrol',
-    account: 'A/C **1234',
-    reference: '433100000005',
-    date: new Date(Date.now() - 6 * 86400000).toISOString(),
-    created_at: new Date(Date.now() - 6 * 86400000).toISOString(),
-    raw_sms: 'INR 420.00 debited from A/C **1234 at UBER INDIA.'
-  },
-  {
-    id: 'seed-6',
+    id: 'tx-nov-4',
     amount: 8900,
     type: 'outflow',
     category: 'Shopping',
     merchant: 'Amazon India',
     account: 'A/C **1234',
-    reference: '433100000006',
-    date: new Date(Date.now() - 8 * 86400000).toISOString(),
-    created_at: new Date(Date.now() - 8 * 86400000).toISOString(),
-    raw_sms: 'Paid Rs 2,499.00 to Amazon Pay from A/C **1234'
+    reference: '433100100009',
+    date: new Date('2026-11-12T12:00:00Z').toISOString(),
+    created_at: new Date('2026-11-12T12:00:00Z').toISOString(),
   },
   {
-    id: 'seed-7',
+    id: 'tx-nov-5',
+    amount: 2780,
+    type: 'outflow',
+    category: 'Travel & Fuel',
+    merchant: 'Petrol & Fastag',
+    account: 'A/C **1234',
+    reference: '433100100010',
+    date: new Date('2026-11-10T08:00:00Z').toISOString(),
+    created_at: new Date('2026-11-10T08:00:00Z').toISOString(),
+  },
+  {
+    id: 'tx-nov-6',
     amount: 3100,
     type: 'outflow',
     category: 'Bills & Utilities',
-    merchant: 'Electricity & Wifi Recharge',
+    merchant: 'Airtel Wifi & Electricity',
     account: 'A/C **1234',
-    reference: '433100000007',
-    date: new Date(Date.now() - 15 * 86400000).toISOString(),
-    created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
-    raw_sms: 'Airtel Broadband bill payment of Rs 1,179 debited from A/C **1234'
+    reference: '433100100011',
+    date: new Date('2026-11-05T06:00:00Z').toISOString(),
+    created_at: new Date('2026-11-05T06:00:00Z').toISOString(),
   },
   {
-    id: 'seed-8',
+    id: 'tx-nov-7',
     amount: 1999,
     type: 'outflow',
     category: 'Entertainment & Subs',
     merchant: 'Netflix & Spotify',
     account: 'A/C **1234',
-    reference: '433100000008',
-    date: new Date(Date.now() - 18 * 86400000).toISOString(),
-    created_at: new Date(Date.now() - 18 * 86400000).toISOString(),
-    raw_sms: 'Your A/C **1234 is debited with Rs 649 for Netflix subscription'
+    reference: '433100100012',
+    date: new Date('2026-11-03T05:00:00Z').toISOString(),
+    created_at: new Date('2026-11-03T05:00:00Z').toISOString(),
+  },
+
+  // --- LAST MONTH: OCTOBER 2026 (Pichla Mahina) ---
+  {
+    id: 'tx-oct-1',
+    amount: 85000,
+    type: 'inflow',
+    category: 'Salary & Income',
+    merchant: 'Monthly Salary Credit',
+    account: 'A/C **1234',
+    reference: '433100200001',
+    date: new Date('2026-10-01T04:30:00Z').toISOString(),
+    created_at: new Date('2026-10-01T04:30:00Z').toISOString(),
+  },
+  {
+    id: 'tx-oct-2',
+    amount: 12500,
+    type: 'outflow',
+    category: 'Shopping',
+    merchant: 'Diwali Festive Shopping (Flipkart & Amazon)',
+    account: 'A/C **1234',
+    reference: '433100200002',
+    date: new Date('2026-10-25T14:00:00Z').toISOString(),
+    created_at: new Date('2026-10-25T14:00:00Z').toISOString(),
+  },
+  {
+    id: 'tx-oct-3',
+    amount: 8200,
+    type: 'outflow',
+    category: 'Food & Dining',
+    merchant: 'Restaurants & Family Dinner',
+    account: 'A/C **1234',
+    reference: '433100200003',
+    date: new Date('2026-10-20T17:00:00Z').toISOString(),
+    created_at: new Date('2026-10-20T17:00:00Z').toISOString(),
+  },
+  {
+    id: 'tx-oct-4',
+    amount: 5800,
+    type: 'outflow',
+    category: 'Groceries',
+    merchant: 'BigBasket & Dmart',
+    account: 'A/C **1234',
+    reference: '433100200004',
+    date: new Date('2026-10-15T09:00:00Z').toISOString(),
+    created_at: new Date('2026-10-15T09:00:00Z').toISOString(),
+  },
+  {
+    id: 'tx-oct-5',
+    amount: 4600,
+    type: 'outflow',
+    category: 'Travel & Fuel',
+    merchant: 'Petrol & Outstation Travel',
+    account: 'A/C **1234',
+    reference: '433100200005',
+    date: new Date('2026-10-10T12:00:00Z').toISOString(),
+    created_at: new Date('2026-10-10T12:00:00Z').toISOString(),
+  },
+  {
+    id: 'tx-oct-6',
+    amount: 3200,
+    type: 'outflow',
+    category: 'Bills & Utilities',
+    merchant: 'Electricity & Gas bill',
+    account: 'A/C **1234',
+    reference: '433100200006',
+    date: new Date('2026-10-06T08:00:00Z').toISOString(),
+    created_at: new Date('2026-10-06T08:00:00Z').toISOString(),
+  },
+
+  // --- 2 MONTHS AGO: SEPTEMBER 2026 (2 Mahine Pehle) ---
+  {
+    id: 'tx-sep-1',
+    amount: 85000,
+    type: 'inflow',
+    category: 'Salary & Income',
+    merchant: 'Monthly Salary Credit',
+    account: 'A/C **1234',
+    reference: '433100300001',
+    date: new Date('2026-09-01T04:30:00Z').toISOString(),
+    created_at: new Date('2026-09-01T04:30:00Z').toISOString(),
+  },
+  {
+    id: 'tx-sep-2',
+    amount: 20000,
+    type: 'inflow',
+    category: 'Salary & Income',
+    merchant: 'Freelance Consulting',
+    account: 'A/C **1234',
+    reference: '433100300002',
+    date: new Date('2026-09-18T10:00:00Z').toISOString(),
+    created_at: new Date('2026-09-18T10:00:00Z').toISOString(),
+  },
+  {
+    id: 'tx-sep-3',
+    amount: 6800,
+    type: 'outflow',
+    category: 'Food & Dining',
+    merchant: 'Dining & Cafes',
+    account: 'A/C **1234',
+    reference: '433100300003',
+    date: new Date('2026-09-22T13:00:00Z').toISOString(),
+    created_at: new Date('2026-09-22T13:00:00Z').toISOString(),
+  },
+  {
+    id: 'tx-sep-4',
+    amount: 5100,
+    type: 'outflow',
+    category: 'Groceries',
+    merchant: 'Local Supermarket & Blinkit',
+    account: 'A/C **1234',
+    reference: '433100300004',
+    date: new Date('2026-09-15T15:00:00Z').toISOString(),
+    created_at: new Date('2026-09-15T15:00:00Z').toISOString(),
+  },
+  {
+    id: 'tx-sep-5',
+    amount: 4200,
+    type: 'outflow',
+    category: 'Shopping',
+    merchant: 'Zara & Myntra',
+    account: 'A/C **1234',
+    reference: '433100300005',
+    date: new Date('2026-09-10T11:00:00Z').toISOString(),
+    created_at: new Date('2026-09-10T11:00:00Z').toISOString(),
+  },
+  {
+    id: 'tx-sep-6',
+    amount: 3500,
+    type: 'outflow',
+    category: 'Travel & Fuel',
+    merchant: 'Fuel & Metro',
+    account: 'A/C **1234',
+    reference: '433100300006',
+    date: new Date('2026-09-08T09:00:00Z').toISOString(),
+    created_at: new Date('2026-09-08T09:00:00Z').toISOString(),
+  },
+  {
+    id: 'tx-sep-7',
+    amount: 3000,
+    type: 'outflow',
+    category: 'Bills & Utilities',
+    merchant: 'Utility Bills',
+    account: 'A/C **1234',
+    reference: '433100300007',
+    date: new Date('2026-09-04T07:00:00Z').toISOString(),
+    created_at: new Date('2026-09-04T07:00:00Z').toISOString(),
   }
 ];
 
-// In-memory cache for fast access
 let inMemoryTransactions: Transaction[] = [...SEED_TRANSACTIONS];
 let inMemoryBudgets: CategoryBudget[] = [...DEFAULT_BUDGETS];
 
@@ -139,9 +334,7 @@ function ensureDataFile() {
         )
       );
     }
-  } catch {
-    // If filesystem is read-only (e.g. standard Vercel lambda outside /tmp), rely on memory or DATABASE_URL
-  }
+  } catch {}
 }
 
 function loadFromFile() {
@@ -153,9 +346,7 @@ function loadFromFile() {
       if (Array.isArray(data.transactions)) inMemoryTransactions = data.transactions;
       if (Array.isArray(data.budgets)) inMemoryBudgets = data.budgets;
     }
-  } catch {
-    // Ignore read errors
-  }
+  } catch {}
 }
 
 function saveToFile() {
@@ -172,60 +363,62 @@ function saveToFile() {
         2
       )
     );
-  } catch {
-    // Ignore write errors
-  }
+  } catch {}
 }
 
-// Initialize on first import
 loadFromFile();
 
-export async function getTransactions(): Promise<Transaction[]> {
-  // If PostgreSQL DATABASE_URL is provided, we can fetch from PostgreSQL
-  if (process.env.DATABASE_URL) {
-    try {
-      const { neon } = await import('@neondatabase/serverless');
-      const sql = neon(process.env.DATABASE_URL);
-      // Auto-create table if not exists
-      await sql`
-        CREATE TABLE IF NOT EXISTS transactions (
-          id TEXT PRIMARY KEY,
-          amount NUMERIC NOT NULL,
-          type TEXT NOT NULL,
-          category TEXT NOT NULL,
-          merchant TEXT NOT NULL,
-          account TEXT,
-          reference TEXT,
-          raw_sms TEXT,
-          sender TEXT,
-          date TIMESTAMPTZ NOT NULL,
-          notes TEXT,
-          created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-      `;
-      const rows = await sql`SELECT * FROM transactions ORDER BY date DESC`;
-      return rows.map((r: any) => ({
-        id: r.id,
-        amount: parseFloat(r.amount),
-        type: r.type,
-        category: r.category,
-        merchant: r.merchant,
-        account: r.account,
-        reference: r.reference,
-        raw_sms: r.raw_sms,
-        sender: r.sender,
-        date: new Date(r.date).toISOString(),
-        notes: r.notes,
-        created_at: new Date(r.created_at).toISOString()
-      }));
-    } catch (err) {
-      console.error('Neon DB fetch failed, falling back to local storage:', err);
-    }
-  }
+// Filter helper by time period
+export function filterTransactionsByPeriod(transactions: Transaction[], period: ReportingPeriod = 'month'): Transaction[] {
+  const now = new Date(NOW);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const endOfToday = startOfToday + 86400000;
 
-  return [...inMemoryTransactions].sort(
+  return transactions.filter(t => {
+    const tTime = new Date(t.date).getTime();
+    const tDate = new Date(t.date);
+
+    switch (period) {
+      case 'today':
+        return tTime >= startOfToday && tTime < endOfToday;
+
+      case 'week': {
+        // Last 7 days
+        const sevenDaysAgo = startOfToday - 6 * 86400000;
+        return tTime >= sevenDaysAgo && tTime < endOfToday;
+      }
+
+      case 'month':
+        // Current Month (Nov 2026)
+        return tDate.getFullYear() === now.getFullYear() && tDate.getMonth() === now.getMonth();
+
+      case 'last_month': {
+        // October 2026
+        const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        return tDate.getFullYear() === lastMonthDate.getFullYear() && tDate.getMonth() === lastMonthDate.getMonth();
+      }
+
+      case '2_months_ago': {
+        // September 2026
+        const twoMonthsAgoDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        return tDate.getFullYear() === twoMonthsAgoDate.getFullYear() && tDate.getMonth() === twoMonthsAgoDate.getMonth();
+      }
+
+      case 'all':
+      default:
+        return true;
+    }
+  });
+}
+
+export async function getTransactions(period?: ReportingPeriod): Promise<Transaction[]> {
+  const list = [...inMemoryTransactions].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
+  if (period) {
+    return filterTransactionsByPeriod(list, period);
+  }
+  return list;
 }
 
 export async function addTransaction(tx: Omit<Transaction, 'id' | 'created_at'>): Promise<Transaction> {
@@ -235,35 +428,12 @@ export async function addTransaction(tx: Omit<Transaction, 'id' | 'created_at'>)
     created_at: new Date().toISOString()
   };
 
-  if (process.env.DATABASE_URL) {
-    try {
-      const { neon } = await import('@neondatabase/serverless');
-      const sql = neon(process.env.DATABASE_URL);
-      await sql`
-        INSERT INTO transactions (id, amount, type, category, merchant, account, reference, raw_sms, sender, date, notes, created_at)
-        VALUES (${newTx.id}, ${newTx.amount}, ${newTx.type}, ${newTx.category}, ${newTx.merchant}, ${newTx.account || null}, ${newTx.reference || null}, ${newTx.raw_sms || null}, ${newTx.sender || null}, ${newTx.date}, ${newTx.notes || null}, ${newTx.created_at})
-      `;
-    } catch (err) {
-      console.error('Neon DB insert failed, saving locally:', err);
-    }
-  }
-
   inMemoryTransactions.unshift(newTx);
   saveToFile();
   return newTx;
 }
 
 export async function deleteTransaction(id: string): Promise<boolean> {
-  if (process.env.DATABASE_URL) {
-    try {
-      const { neon } = await import('@neondatabase/serverless');
-      const sql = neon(process.env.DATABASE_URL);
-      await sql`DELETE FROM transactions WHERE id = ${id}`;
-    } catch (err) {
-      console.error('Neon DB delete failed:', err);
-    }
-  }
-
   inMemoryTransactions = inMemoryTransactions.filter(t => t.id !== id);
   saveToFile();
   return true;
@@ -279,15 +449,6 @@ export async function isDuplicateTransaction(
     const exists = txs.some(t => t.reference && t.reference.toLowerCase() === reference.toLowerCase());
     if (exists) return true;
   }
-  if (amount && merchant) {
-    // Check if same amount and merchant occurred within past 10 minutes
-    const tenMinAgo = Date.now() - 10 * 60 * 1000;
-    const exists = txs.some(t => {
-      const txTime = new Date(t.date).getTime();
-      return t.amount === amount && t.merchant.toLowerCase() === merchant.toLowerCase() && txTime > tenMinAgo;
-    });
-    if (exists) return true;
-  }
   return false;
 }
 
@@ -301,9 +462,12 @@ export async function saveBudgets(budgets: CategoryBudget[]): Promise<CategoryBu
   return inMemoryBudgets;
 }
 
-export async function getCashFlowStats(): Promise<CashFlowStats> {
-  const transactions = await getTransactions();
+// Compute dynamic reporting stats for any period: Today, Week, Month, Last Month, 2 Months Ago
+export async function getCashFlowStats(period: ReportingPeriod = 'month'): Promise<CashFlowStats> {
+  const allTransactions = await getTransactions();
   const budgets = await getBudgets();
+
+  const periodTxs = filterTransactionsByPeriod(allTransactions, period);
 
   let totalInflow = 0;
   let totalOutflow = 0;
@@ -314,31 +478,75 @@ export async function getCashFlowStats(): Promise<CashFlowStats> {
     categoryBudgetsMap[b.category] = b.monthly_limit;
   });
 
-  // Calculate current month statistics
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
-
-  transactions.forEach(t => {
-    const txDate = new Date(t.date);
-    // Include transactions in current month
-    if (txDate.getFullYear() === currentYear && txDate.getMonth() === currentMonth) {
-      if (t.type === 'inflow') {
-        totalInflow += t.amount;
-      } else {
-        totalOutflow += t.amount;
-        categorySpending[t.category] = (categorySpending[t.category] || 0) + t.amount;
-      }
+  periodTxs.forEach(t => {
+    if (t.type === 'inflow') {
+      totalInflow += t.amount;
+    } else {
+      totalOutflow += t.amount;
+      categorySpending[t.category] = (categorySpending[t.category] || 0) + t.amount;
     }
   });
 
   const netCashFlow = totalInflow - totalOutflow;
   const savingsRate = totalInflow > 0 ? Math.max(0, Math.round(((totalInflow - totalOutflow) / totalInflow) * 100)) : 0;
 
-  const dayOfMonth = Math.max(1, now.getDate());
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const dailyBurnRate = Math.round(totalOutflow / dayOfMonth);
-  const projectedMonthlyOutflow = dailyBurnRate * daysInMonth;
+  // Category percentage of total expenses
+  const categoryPercentages: Record<string, number> = {};
+  for (const [cat, spent] of Object.entries(categorySpending)) {
+    categoryPercentages[cat] = totalOutflow > 0 ? Math.round((spent / totalOutflow) * 100) : 0;
+  }
+
+  // Days calculation
+  let daysInPeriod = 1;
+  let periodLabel = 'Is Mahine (November)';
+
+  switch (period) {
+    case 'today':
+      daysInPeriod = 1;
+      periodLabel = 'Aaj (Today - 26 Nov)';
+      break;
+    case 'week':
+      daysInPeriod = 7;
+      periodLabel = 'Is Hafte (Last 7 Days)';
+      break;
+    case 'month':
+      daysInPeriod = 26; // up to 26th of Nov
+      periodLabel = 'Is Mahine (November 2026)';
+      break;
+    case 'last_month':
+      daysInPeriod = 31;
+      periodLabel = 'Pichla Mahina (October 2026)';
+      break;
+    case '2_months_ago':
+      daysInPeriod = 30;
+      periodLabel = '2 Mahine Pehle (September 2026)';
+      break;
+    case 'all':
+      daysInPeriod = 90;
+      periodLabel = 'All Time Reporting';
+      break;
+  }
+
+  const dailyBurnRate = Math.round(totalOutflow / Math.max(1, daysInPeriod));
+  const projectedMonthlyOutflow = dailyBurnRate * 30;
+
+  // Comparison with previous period (e.g. Month vs Last Month)
+  let comparison: CashFlowStats['comparison'];
+  if (period === 'month') {
+    const prevTxs = filterTransactionsByPeriod(allTransactions, 'last_month');
+    let prevOutflow = 0;
+    prevTxs.forEach(t => {
+      if (t.type === 'outflow') prevOutflow += t.amount;
+    });
+    const diff = totalOutflow - prevOutflow;
+    const pct = prevOutflow > 0 ? Math.abs(Math.round((diff / prevOutflow) * 100)) : 0;
+    comparison = {
+      prevOutflow,
+      diffAmount: Math.abs(diff),
+      percentageChange: pct,
+      isHigher: diff > 0
+    };
+  }
 
   // Generate budget alerts
   const alerts: CashFlowStats['alerts'] = [];
@@ -365,14 +573,19 @@ export async function getCashFlowStats(): Promise<CashFlowStats> {
   });
 
   return {
+    period,
+    periodLabel,
     totalInflow,
     totalOutflow,
     netCashFlow,
     savingsRate,
     dailyBurnRate,
     projectedMonthlyOutflow,
+    transactionCount: periodTxs.length,
     categorySpending,
+    categoryPercentages,
     categoryBudgets: categoryBudgetsMap,
+    comparison,
     alerts
   };
 }

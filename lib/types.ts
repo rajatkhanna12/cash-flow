@@ -33,15 +33,27 @@ export interface SMSParseResult {
   confidence: number;
 }
 
+export type ReportingPeriod = 'today' | 'week' | 'month' | 'last_month' | '2_months_ago' | 'all';
+
 export interface CashFlowStats {
+  period: ReportingPeriod;
+  periodLabel: string;
   totalInflow: number;
   totalOutflow: number;
   netCashFlow: number;
   savingsRate: number; // percentage
   dailyBurnRate: number;
   projectedMonthlyOutflow: number;
+  transactionCount: number;
   categorySpending: Record<string, number>;
+  categoryPercentages: Record<string, number>;
   categoryBudgets: Record<string, number>;
+  comparison?: {
+    prevOutflow: number;
+    diffAmount: number;
+    percentageChange: number;
+    isHigher: boolean;
+  };
   alerts: Array<{
     category: string;
     spent: number;
