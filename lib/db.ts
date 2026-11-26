@@ -13,169 +13,10 @@ export const DEFAULT_BUDGETS: CategoryBudget[] = [
   { category: 'Other Expenses', monthly_limit: 5000 },
 ];
 
-export const DEFAULT_MY_ACCOUNTS: MyAccount[] = [
-  { id: 'acc-1', name: 'Primary Bank A/C', identifier: '1234' },
-  { id: 'acc-2', name: 'Savings A/C', identifier: '5678' }
-];
+export const DEFAULT_MY_ACCOUNTS: MyAccount[] = [];
 
-const NOW = new Date('2026-11-26T10:30:00Z');
-
-const SEED_TRANSACTIONS: Transaction[] = [
-  // --- TODAY (26 Nov 2026) ---
-  {
-    id: 'tx-today-1',
-    amount: 480,
-    type: 'outflow',
-    category: 'Food & Dining',
-    merchant: 'Swiggy',
-    account: 'A/C **1234',
-    reference: '433100100001',
-    date: new Date('2026-11-26T08:30:00Z').toISOString(),
-    created_at: new Date('2026-11-26T08:30:00Z').toISOString(),
-    raw_sms: 'Sent Rs.480.00 from HDFC Bank A/C **1234 to SWIGGY on 26-NOV-26.'
-  },
-  {
-    id: 'tx-today-2',
-    amount: 180,
-    type: 'outflow',
-    category: 'Food & Dining',
-    merchant: 'Chai Point',
-    account: 'A/C **1234',
-    reference: '433100100002',
-    date: new Date('2026-11-26T04:15:00Z').toISOString(),
-    created_at: new Date('2026-11-26T04:15:00Z').toISOString(),
-    raw_sms: 'Paid Rs 180.00 to Chai Point from A/C **1234.'
-  },
-  {
-    id: 'tx-today-transfer',
-    amount: 5000,
-    type: 'transfer',
-    category: 'Self Transfer',
-    merchant: 'Self Account Transfer (SBI Savings)',
-    account: 'A/C **1234',
-    reference: '433100100099',
-    date: new Date('2026-11-26T07:00:00Z').toISOString(),
-    created_at: new Date('2026-11-26T07:00:00Z').toISOString(),
-    notes: 'Transferred to personal savings account. Excluded from expense.'
-  },
-
-  // --- THIS WEEK (20 - 25 Nov 2026) ---
-  {
-    id: 'tx-week-1',
-    amount: 850,
-    type: 'outflow',
-    category: 'Groceries',
-    merchant: 'Blinkit',
-    account: 'A/C **1234',
-    reference: '433100100003',
-    date: new Date('2026-11-24T14:20:00Z').toISOString(),
-    created_at: new Date('2026-11-24T14:20:00Z').toISOString(),
-    raw_sms: 'Sent Rs.850.00 to Blinkit from A/C **1234'
-  },
-  {
-    id: 'tx-week-2',
-    amount: 420,
-    type: 'outflow',
-    category: 'Travel & Fuel',
-    merchant: 'Uber Rides',
-    account: 'A/C **1234',
-    reference: '433100100004',
-    date: new Date('2026-11-23T11:00:00Z').toISOString(),
-    created_at: new Date('2026-11-23T11:00:00Z').toISOString(),
-    raw_sms: 'INR 420.00 debited at UBER INDIA.'
-  },
-  {
-    id: 'tx-week-3',
-    amount: 15000,
-    type: 'inflow',
-    category: 'Salary & Income',
-    merchant: 'Freelance Payout',
-    account: 'A/C **1234',
-    reference: '433100100005',
-    date: new Date('2026-11-22T09:00:00Z').toISOString(),
-    created_at: new Date('2026-11-22T09:00:00Z').toISOString(),
-    raw_sms: 'Your A/C **1234 is credited by Rs 15,000.00 from Client VPA.'
-  },
-
-  // --- EARLIER THIS MONTH (Nov 2026) ---
-  {
-    id: 'tx-nov-1',
-    amount: 85000,
-    type: 'inflow',
-    category: 'Salary & Income',
-    merchant: 'Monthly Salary Credit',
-    account: 'A/C **1234',
-    reference: '433100100006',
-    date: new Date('2026-11-01T04:30:00Z').toISOString(),
-    created_at: new Date('2026-11-01T04:30:00Z').toISOString(),
-  },
-  {
-    id: 'tx-nov-2',
-    amount: 6540,
-    type: 'outflow',
-    category: 'Food & Dining',
-    merchant: 'Zomato & Dining Out',
-    account: 'A/C **1234',
-    reference: '433100100007',
-    date: new Date('2026-11-18T16:00:00Z').toISOString(),
-    created_at: new Date('2026-11-18T16:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-nov-3',
-    amount: 4550,
-    type: 'outflow',
-    category: 'Groceries',
-    merchant: 'Zepto & Instamart',
-    account: 'A/C **1234',
-    reference: '433100100008',
-    date: new Date('2026-11-15T10:00:00Z').toISOString(),
-    created_at: new Date('2026-11-15T10:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-nov-4',
-    amount: 8900,
-    type: 'outflow',
-    category: 'Shopping',
-    merchant: 'Amazon India',
-    account: 'A/C **1234',
-    reference: '433100100009',
-    date: new Date('2026-11-12T12:00:00Z').toISOString(),
-    created_at: new Date('2026-11-12T12:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-nov-5',
-    amount: 2780,
-    type: 'outflow',
-    category: 'Travel & Fuel',
-    merchant: 'Petrol & Fastag',
-    account: 'A/C **1234',
-    reference: '433100100010',
-    date: new Date('2026-11-10T08:00:00Z').toISOString(),
-    created_at: new Date('2026-11-10T08:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-nov-6',
-    amount: 3100,
-    type: 'outflow',
-    category: 'Bills & Utilities',
-    merchant: 'Airtel Wifi & Electricity',
-    account: 'A/C **1234',
-    reference: '433100100011',
-    date: new Date('2026-11-05T06:00:00Z').toISOString(),
-    created_at: new Date('2026-11-05T06:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-nov-7',
-    amount: 1999,
-    type: 'outflow',
-    category: 'Entertainment & Subs',
-    merchant: 'Netflix & Spotify',
-    account: 'A/C **1234',
-    reference: '433100100012',
-    date: new Date('2026-11-03T05:00:00Z').toISOString(),
-    created_at: new Date('2026-11-03T05:00:00Z').toISOString(),
-  }
-];
+// Clean initial production state: 0 dummy transactions
+const SEED_TRANSACTIONS: Transaction[] = [];
 
 let inMemoryTransactions: Transaction[] = [...SEED_TRANSACTIONS];
 let inMemoryBudgets: CategoryBudget[] = [...DEFAULT_BUDGETS];
@@ -194,9 +35,9 @@ function ensureDataFile() {
         DATA_FILE,
         JSON.stringify(
           {
-            transactions: SEED_TRANSACTIONS,
+            transactions: [],
             budgets: DEFAULT_BUDGETS,
-            myAccounts: DEFAULT_MY_ACCOUNTS
+            myAccounts: []
           },
           null,
           2
@@ -246,7 +87,7 @@ export function filterTransactionsByPeriod(
   startDateStr?: string,
   endDateStr?: string
 ): Transaction[] {
-  const now = new Date(NOW);
+  const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const endOfToday = startOfToday + 86400000 - 1;
 
@@ -346,7 +187,6 @@ export async function saveBudgets(budgets: CategoryBudget[]): Promise<CategoryBu
   return inMemoryBudgets;
 }
 
-// Manage User's Own Accounts & UPI IDs
 export async function getMyAccounts(): Promise<MyAccount[]> {
   return [...inMemoryMyAccounts];
 }
@@ -367,7 +207,6 @@ export async function deleteMyAccount(id: string): Promise<boolean> {
   return true;
 }
 
-// Compute Cash Flow statistics: EXCLUDES 'transfer' / 'Self Transfer' from expenses & income!
 export async function getCashFlowStats(
   period: ReportingPeriod = 'month',
   startDateStr?: string,
@@ -389,7 +228,6 @@ export async function getCashFlowStats(
   });
 
   periodTxs.forEach(t => {
-    // 🛡️ SELF TRANSFERS ARE COMPLETELY EXCLUDED FROM EXPENSE & INCOME!
     if (t.type === 'transfer' || t.category === 'Self Transfer') {
       totalTransfers += t.amount;
       return;
@@ -411,21 +249,24 @@ export async function getCashFlowStats(
     categoryPercentages[cat] = totalOutflow > 0 ? Math.round((spent / totalOutflow) * 100) : 0;
   }
 
+  const now = new Date();
+  const currentMonthName = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+
   let daysCount = 1;
-  let periodLabel = 'Current Month (November)';
+  let periodLabel = `Current Month (${currentMonthName})`;
 
   switch (period) {
     case 'today':
       daysCount = 1;
-      periodLabel = 'Today (26 Nov 2026)';
+      periodLabel = `Today (${now.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})`;
       break;
     case 'week':
       daysCount = 7;
       periodLabel = 'This Week (Past 7 Days)';
       break;
     case 'month':
-      daysCount = 26;
-      periodLabel = 'Current Month (Nov 2026)';
+      daysCount = Math.max(1, now.getDate());
+      periodLabel = `Current Month (${currentMonthName})`;
       break;
     case 'custom':
       if (startDateStr && endDateStr) {
@@ -442,7 +283,6 @@ export async function getCashFlowStats(
   const dailyBurnRate = Math.round(totalOutflow / Math.max(1, daysCount));
   const projectedMonthlyOutflow = dailyBurnRate * 30;
 
-  // Generate budget alerts
   const alerts: CashFlowStats['alerts'] = [];
   budgets.forEach(b => {
     const spent = categorySpending[b.category] || 0;

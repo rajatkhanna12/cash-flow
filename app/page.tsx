@@ -27,7 +27,7 @@ import {
   ArrowLeftRight,
   CreditCard,
   Building2,
-  LayoutDashboard
+  Inbox
 } from 'lucide-react';
 import { Transaction, CashFlowStats, CategoryBudget, ReportingPeriod, MyAccount } from '@/lib/types';
 
@@ -69,9 +69,16 @@ export default function CashFlowApp() {
   // Exact Requested Filters: today | week | month | custom
   const [selectedPeriod, setSelectedPeriod] = useState<ReportingPeriod>('month');
 
-  // Custom Date Range State
-  const [customFromDate, setCustomFromDate] = useState('2026-09-01');
+  // Date Range State
+  const [customFromDate, setCustomFromDate] = useState('2026-10-26');
   const [customToDate, setCustomToDate] = useState('2026-11-26');
+
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const past = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+    setCustomToDate(today);
+    setCustomFromDate(past);
+  }, []);
 
   // Search & Type Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -289,7 +296,7 @@ export default function CashFlowApp() {
   const outflow = stats?.totalOutflow || 0;
   const net = stats?.netCashFlow || 0;
   const transfers = stats?.totalTransfers || 0;
-  const expensePercentage = inflow > 0 ? Math.min(100, Math.round((outflow / inflow) * 100)) : 100;
+  const expensePercentage = inflow > 0 ? Math.min(100, Math.round((outflow / inflow) * 100)) : (outflow > 0 ? 100 : 0);
   const savingsPercentage = 100 - expensePercentage;
 
   return (
@@ -297,7 +304,6 @@ export default function CashFlowApp() {
       {/* 🌐 RESPONSIVE APP HEADER */}
       <header className="bg-white border-b border-slate-200/90 sticky top-0 z-30 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          {/* Logo & Branding */}
           <div className="flex items-center space-x-3">
             <div className="h-9 w-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-xs">
               <Wallet className="h-5 w-5" />
@@ -306,14 +312,14 @@ export default function CashFlowApp() {
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-slate-900 text-sm sm:text-base tracking-tight">CashFlow Guard</h1>
                 <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
-                  Live
+                  Ready
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">Automated Cash Flow & Expense Guardrails</p>
+              <p className="text-[11px] text-slate-400 hidden sm:block">Automated Cash Flow & iPhone Integration</p>
             </div>
           </div>
 
-          {/* DESKTOP TOP NAV TABS (HIDDEN ON MOBILE, VISIBLE ON MD+) */}
+          {/* DESKTOP TOP NAV TABS */}
           <nav className="hidden md:flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
             <button
               onClick={() => setActiveTab('flow')}
@@ -391,7 +397,7 @@ export default function CashFlowApp() {
           </div>
         </div>
 
-        {/* ⏱️ FILTERS BAR (RESPONSIVE) */}
+        {/* ⏱️ FILTERS BAR */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full md:w-auto">
             <button
@@ -440,7 +446,6 @@ export default function CashFlowApp() {
             </button>
           </div>
 
-          {/* ACTIVE STATUS PILL */}
           <div className="flex items-center justify-between md:justify-end gap-3 text-xs text-slate-500">
             <span className="font-semibold text-slate-700 flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 text-emerald-600" />
@@ -452,7 +457,7 @@ export default function CashFlowApp() {
           </div>
         </div>
 
-        {/* 📅 CUSTOM DATE RANGE EXPANDABLE ROW */}
+        {/* 📅 CUSTOM DATE RANGE */}
         {selectedPeriod === 'custom' && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 border-t border-slate-100">
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col md:flex-row md:items-center gap-3">
@@ -485,9 +490,9 @@ export default function CashFlowApp() {
         )}
       </header>
 
-      {/* 📱 / 💻 MAIN CONTENT CONTAINER (RESPONSIVE: MOBILE MAX-W-LG, DESKTOP MAX-W-7XL) */}
+      {/* 📱 / 💻 MAIN CONTENT */}
       <main className="max-w-lg lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 w-full space-y-6 flex-1">
-        {/* OVERSPENDING WARNING ALERT BANNER */}
+        {/* OVERSPENDING ALERT */}
         {selectedPeriod === 'month' && stats && stats.alerts.length > 0 && (
           <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="flex items-start md:items-center space-x-3">
@@ -517,7 +522,7 @@ export default function CashFlowApp() {
         {/* 📊 TAB 1: FLOW (HOME) */}
         {activeTab === 'flow' && (
           <div className="space-y-6">
-            {/* 🌐 DESKTOP & MOBILE RESPONSIVE KPI CARDS */}
+            {/* 4 KPI CARDS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Card 1: Net Cash Flow */}
               <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
@@ -528,7 +533,7 @@ export default function CashFlowApp() {
                   <div className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
                     net >= 0 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
                   }`}>
-                    {savingsPercentage}% Bachat
+                    {inflow > 0 ? `${savingsPercentage}% Bachat` : 'Clean Slate'}
                   </div>
                 </div>
                 <div className="mt-3">
@@ -537,7 +542,6 @@ export default function CashFlowApp() {
                   </div>
                   <p className="text-xs text-slate-500 mt-1">Inflow minus outflow</p>
                 </div>
-                {/* Visual Ratio Bar */}
                 <div className="mt-4 space-y-1">
                   <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/60">
                     <div
@@ -552,7 +556,7 @@ export default function CashFlowApp() {
                 </div>
               </div>
 
-              {/* Card 2: Kul Aaya (Inflow) */}
+              {/* Card 2: Kul Aaya */}
               <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -573,7 +577,7 @@ export default function CashFlowApp() {
                 </div>
               </div>
 
-              {/* Card 3: Kul Gaya (Outflow) */}
+              {/* Card 3: Kul Gaya */}
               <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -594,7 +598,7 @@ export default function CashFlowApp() {
                 </div>
               </div>
 
-              {/* Card 4: Self Transfers & Run Rate */}
+              {/* Card 4: Self Transfers */}
               <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -617,11 +621,10 @@ export default function CashFlowApp() {
               </div>
             </div>
 
-            {/* 🌐 MAIN 2-COLUMN DESKTOP SPLIT / 1-COLUMN MOBILE */}
+            {/* 2-COLUMN DESKTOP SPLIT / 1-COLUMN MOBILE */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column (1/3 on desktop): Category Spending & Budgets */}
+              {/* Left Column: Category Budgets */}
               <div className="space-y-6">
-                {/* Category Budgets Card */}
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
@@ -668,12 +671,12 @@ export default function CashFlowApp() {
                   </div>
                 </div>
 
-                {/* Quick My Accounts Preview */}
+                {/* My Accounts Quick Widget */}
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                     <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                       <CreditCard className="h-4 w-4 text-sky-600" />
-                      My Whitelisted UPI/A/C ({myAccounts.length})
+                      My Accounts ({myAccounts.length})
                     </span>
                     <button
                       onClick={() => setActiveTab('accounts')}
@@ -682,28 +685,39 @@ export default function CashFlowApp() {
                       Manage →
                     </button>
                   </div>
-                  <div className="space-y-2">
-                    {myAccounts.slice(0, 3).map(acc => (
-                      <div key={acc.id} className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-800">{acc.name}</span>
-                        <span className="text-[11px] font-mono text-slate-500">{acc.identifier}</span>
-                      </div>
-                    ))}
-                  </div>
+                  {myAccounts.length === 0 ? (
+                    <div className="p-3 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
+                      <p>Apna UPI ya A/C add karein taaki internal transfers zero expense banein.</p>
+                      <button
+                        onClick={() => setActiveTab('accounts')}
+                        className="mt-2 text-xs font-bold text-sky-600 underline"
+                      >
+                        + Add Account
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {myAccounts.slice(0, 3).map(acc => (
+                        <div key={acc.id} className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-800">{acc.name}</span>
+                          <span className="text-[11px] font-mono text-slate-500">{acc.identifier}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Right Column (2/3 on desktop): Full Transactions Feed */}
+              {/* Right Column: Transactions History */}
               <div className="lg:col-span-2 bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4 flex flex-col">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                   <div>
                     <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
                       Transactions History
                     </h2>
-                    <p className="text-xs text-slate-500">Auto-detected SMS & UPI records for {stats?.periodLabel}</p>
+                    <p className="text-xs text-slate-500">Auto-detected SMS & UPI records</p>
                   </div>
 
-                  {/* Search and Filters */}
                   <div className="flex items-center space-x-2">
                     <div className="relative">
                       <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -744,11 +758,34 @@ export default function CashFlowApp() {
                   </div>
                 </div>
 
-                {/* Transactions Table / List */}
+                {/* Transactions Table / Empty State */}
                 <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-[560px] pr-1">
                   {filteredTransactions.length === 0 ? (
-                    <div className="text-center py-16 text-xs text-slate-400">
-                      Is selected filter mein koi transaction nahi mila.
+                    <div className="text-center py-16 px-4 space-y-3">
+                      <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                        <Inbox className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">Abhi koi transaction nahi hai</h4>
+                        <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                          Aapka system clean aur ready hai! iPhone Shortcut setup karein ya manually test karne ke liye &apos;Naya Add&apos; karein.
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-center gap-2 pt-2">
+                        <button
+                          onClick={() => setActiveTab('iphone-setup')}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5"
+                        >
+                          <Smartphone className="h-3.5 w-3.5" />
+                          <span>iPhone Shortcut Setup</span>
+                        </button>
+                        <button
+                          onClick={() => setShowAddModal(true)}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 transition"
+                        >
+                          + Manual Entry
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     filteredTransactions.map(tx => (
@@ -803,7 +840,6 @@ export default function CashFlowApp() {
                             {tx.type === 'transfer' ? '⇄ ' : tx.type === 'inflow' ? '+' : '-'} {formatCurrency(tx.amount)}
                           </span>
 
-                          {/* 1-Tap Toggle between Expense & Transfer */}
                           <button
                             onClick={() => handleToggleTransfer(tx)}
                             title={tx.type === 'transfer' ? 'Convert to Expense' : 'Mark as Self-Transfer (Exclude from Expense)'}
@@ -833,7 +869,7 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 💳 TAB 2: MY ACCOUNTS & UPI (DYNAMIC SELF-TRANSFER SETUP) */}
+        {/* 💳 TAB 2: MY ACCOUNTS & UPI */}
         {activeTab === 'accounts' && (
           <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-6">
             <div className="border-b border-slate-100 pb-3">
@@ -847,7 +883,6 @@ export default function CashFlowApp() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Add Account Form */}
               <form onSubmit={handleAddAccount} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <span className="text-xs font-bold text-slate-800 block">Naya Account / UPI ID Add Karein:</span>
                 <div>
@@ -879,12 +914,11 @@ export default function CashFlowApp() {
                 </button>
               </form>
 
-              {/* Whitelisted Accounts List */}
               <div className="space-y-3">
                 <span className="text-xs font-bold text-slate-900">Active Whitelisted Accounts ({myAccounts.length}):</span>
                 <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
                   {myAccounts.length === 0 ? (
-                    <p className="p-4 text-xs text-slate-400 text-center">Koi account add nahi hai.</p>
+                    <p className="p-4 text-xs text-slate-400 text-center">Abhi koi account add nahi hai. Upar se add karein!</p>
                   ) : (
                     myAccounts.map(acc => (
                       <div key={acc.id} className="p-3 flex items-center justify-between bg-white hover:bg-slate-50 text-xs">
@@ -1164,7 +1198,7 @@ export default function CashFlowApp() {
         )}
       </main>
 
-      {/* 📱 NATIVE iOS STYLE FIXED BOTTOM NAVIGATION BAR (MOBILE ONLY: md:hidden) */}
+      {/* 📱 NATIVE iOS STYLE FIXED BOTTOM NAVIGATION BAR (MOBILE ONLY) */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200/90 z-40 shadow-lg md:hidden">
         <div className="max-w-lg mx-auto px-2 h-16 flex items-center justify-around">
           <button
