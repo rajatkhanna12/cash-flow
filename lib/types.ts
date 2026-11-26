@@ -12,7 +12,7 @@ export interface Transaction {
   sender?: string;
   date: string; // ISO string
   notes?: string;
-  created_at: string;
+  created_at?: string;
 }
 
 export interface MyAccount {

@@ -1,6 +1,7 @@
 import { Transaction, CategoryBudget, CashFlowStats, ReportingPeriod, MyAccount } from './types';
 import fs from 'fs';
 import path from 'path';
+import { neon } from '@neondatabase/serverless';
 
 export const DEFAULT_BUDGETS: CategoryBudget[] = [
   { category: 'Food & Dining', monthly_limit: 8000 },
@@ -15,10 +16,8 @@ export const DEFAULT_BUDGETS: CategoryBudget[] = [
 
 export const DEFAULT_MY_ACCOUNTS: MyAccount[] = [];
 
-// Clean initial production state: 0 dummy transactions
-const SEED_TRANSACTIONS: Transaction[] = [];
-
-let inMemoryTransactions: Transaction[] = [...SEED_TRANSACTIONS];
+// Fallback in-memory state
+let inMemoryTransactions: Transaction[] = [];
 let inMemoryBudgets: CategoryBudget[] = [...DEFAULT_BUDGETS];
 let inMemoryMyAccounts: MyAccount[] = [...DEFAULT_MY_ACCOUNTS];
 
@@ -80,6 +79,58 @@ function saveToFile() {
 
 loadFromFile();
 
+// 🚀 PostgreSQL (Neon / Supabase / Vercel Postgres) Connection
+function getSql() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) return null;
+  return neon(dbUrl);
+}
+
+let dbInitialized = false;
+async function ensureDbInitialized() {
+  const sql = getSql();
+  if (!sql || dbInitialized) return;
+
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS transactions (
+        id TEXT PRIMARY KEY,
+        date TEXT NOT NULL,
+        amount NUMERIC NOT NULL,
+        type TEXT NOT NULL,
+        category TEXT NOT NULL,
+        merchant TEXT NOT NULL,
+        account TEXT,
+        reference TEXT,
+        raw_sms TEXT,
+        sender TEXT,
+        notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS my_accounts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        identifier TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS budgets (
+        category TEXT PRIMARY KEY,
+        monthly_limit NUMERIC NOT NULL
+      );
+    `;
+
+    dbInitialized = true;
+  } catch (err) {
+    console.error('Error initializing PostgreSQL tables:', err);
+  }
+}
+
 // Filter helper
 export function filterTransactionsByPeriod(
   transactions: Transaction[],
@@ -98,26 +149,19 @@ export function filterTransactionsByPeriod(
     switch (period) {
       case 'today':
         return tTime >= startOfToday && tTime <= endOfToday;
-
       case 'week': {
-        const startOfWeek = startOfToday - 6 * 86400000;
-        return tTime >= startOfWeek && tTime <= endOfToday;
+        const weekAgo = new Date(now.getTime() - 7 * 86400000).getTime();
+        return tTime >= weekAgo && tTime <= now.getTime();
       }
-
       case 'month':
-        return tDate.getFullYear() === now.getFullYear() && tDate.getMonth() === now.getMonth();
-
-      case 'custom': {
-        if (!startDateStr && !endDateStr) return true;
-        const fromTime = startDateStr
-          ? new Date(`${startDateStr}T00:00:00`).getTime()
-          : 0;
-        const toTime = endDateStr
-          ? new Date(`${endDateStr}T23:59:59.999`).getTime()
-          : Number.MAX_SAFE_INTEGER;
-        return tTime >= fromTime && tTime <= toTime;
-      }
-
+        return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+      case 'custom':
+        if (startDateStr && endDateStr) {
+          const start = new Date(startDateStr).getTime();
+          const end = new Date(endDateStr).setHours(23, 59, 59, 999);
+          return tTime >= start && tTime <= end;
+        }
+        return true;
       default:
         return true;
     }
@@ -126,24 +170,81 @@ export function filterTransactionsByPeriod(
 
 export async function getTransactions(
   period?: ReportingPeriod,
-  startDate?: string,
-  endDate?: string
+  startDateStr?: string,
+  endDateStr?: string
 ): Promise<Transaction[]> {
-  const list = [...inMemoryTransactions].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      const rows = await sql`
+        SELECT id, date, amount, type, category, merchant, account, reference, raw_sms, sender, notes, created_at
+        FROM transactions
+        ORDER BY date DESC, created_at DESC;
+      `;
+      let txs: Transaction[] = rows.map((r: any) => ({
+        id: r.id,
+        date: r.date,
+        amount: Number(r.amount),
+        type: r.type as 'inflow' | 'outflow' | 'transfer',
+        category: r.category,
+        merchant: r.merchant,
+        account: r.account || undefined,
+        reference: r.reference || undefined,
+        raw_sms: r.raw_sms || undefined,
+        sender: r.sender || undefined,
+        notes: r.notes || undefined,
+        created_at: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString()
+      }));
+      if (period) {
+        txs = filterTransactionsByPeriod(txs, period, startDateStr, endDateStr);
+      }
+      return txs;
+    } catch (err) {
+      console.error('Error fetching transactions from Postgres:', err);
+    }
+  }
+
+  loadFromFile();
+  let list = [...inMemoryTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   if (period) {
-    return filterTransactionsByPeriod(list, period, startDate, endDate);
+    list = filterTransactionsByPeriod(list, period, startDateStr, endDateStr);
   }
   return list;
 }
 
-export async function addTransaction(tx: Omit<Transaction, 'id' | 'created_at'>): Promise<Transaction> {
+export async function addTransaction(transaction: Omit<Transaction, 'id'>): Promise<Transaction> {
   const newTx: Transaction = {
-    ...tx,
-    id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-    created_at: new Date().toISOString()
+    ...transaction,
+    id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    created_at: transaction.created_at || new Date().toISOString()
   };
+
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      await sql`
+        INSERT INTO transactions (id, date, amount, type, category, merchant, account, reference, raw_sms, sender, notes)
+        VALUES (
+          ${newTx.id},
+          ${newTx.date},
+          ${newTx.amount},
+          ${newTx.type},
+          ${newTx.category},
+          ${newTx.merchant},
+          ${newTx.account || null},
+          ${newTx.reference || null},
+          ${newTx.raw_sms || null},
+          ${newTx.sender || null},
+          ${newTx.notes || null}
+        );
+      `;
+      return newTx;
+    } catch (err) {
+      console.error('Error inserting transaction into Postgres:', err);
+    }
+  }
 
   inMemoryTransactions.unshift(newTx);
   saveToFile();
@@ -151,6 +252,41 @@ export async function addTransaction(tx: Omit<Transaction, 'id' | 'created_at'>)
 }
 
 export async function updateTransaction(id: string, updates: Partial<Transaction>): Promise<Transaction | null> {
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      const existing = await sql`SELECT * FROM transactions WHERE id = ${id};`;
+      if (existing.length === 0) return null;
+
+      const current = existing[0];
+      const updatedType = updates.type !== undefined ? updates.type : current.type;
+      const updatedCategory = updates.category !== undefined ? updates.category : current.category;
+      const updatedMerchant = updates.merchant !== undefined ? updates.merchant : current.merchant;
+      const updatedAmount = updates.amount !== undefined ? updates.amount : current.amount;
+
+      await sql`
+        UPDATE transactions
+        SET type = ${updatedType}, category = ${updatedCategory}, merchant = ${updatedMerchant}, amount = ${updatedAmount}
+        WHERE id = ${id};
+      `;
+
+      return {
+        id,
+        date: current.date,
+        amount: Number(updatedAmount),
+        type: updatedType,
+        category: updatedCategory,
+        merchant: updatedMerchant,
+        account: current.account,
+        reference: current.reference,
+        created_at: current.created_at
+      };
+    } catch (err) {
+      console.error('Error updating transaction in Postgres:', err);
+    }
+  }
+
   const idx = inMemoryTransactions.findIndex(t => t.id === id);
   if (idx === -1) return null;
   inMemoryTransactions[idx] = { ...inMemoryTransactions[idx], ...updates };
@@ -159,12 +295,34 @@ export async function updateTransaction(id: string, updates: Partial<Transaction
 }
 
 export async function deleteTransaction(id: string): Promise<boolean> {
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      await sql`DELETE FROM transactions WHERE id = ${id};`;
+      return true;
+    } catch (err) {
+      console.error('Error deleting transaction in Postgres:', err);
+    }
+  }
+
   inMemoryTransactions = inMemoryTransactions.filter(t => t.id !== id);
   saveToFile();
   return true;
 }
 
 export async function clearAllTransactions(): Promise<boolean> {
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      await sql`DELETE FROM transactions;`;
+      return true;
+    } catch (err) {
+      console.error('Error clearing transactions in Postgres:', err);
+    }
+  }
+
   inMemoryTransactions = [];
   saveToFile();
   return true;
@@ -184,16 +342,74 @@ export async function isDuplicateTransaction(
 }
 
 export async function getBudgets(): Promise<CategoryBudget[]> {
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      const rows = await sql`SELECT category, monthly_limit as "monthly_limit" FROM budgets;`;
+      if (rows.length > 0) {
+        return rows.map((r: any) => ({
+          category: r.category,
+          monthly_limit: Number(r.monthly_limit)
+        }));
+      } else {
+        for (const b of DEFAULT_BUDGETS) {
+          await sql`
+            INSERT INTO budgets (category, monthly_limit)
+            VALUES (${b.category}, ${b.monthly_limit})
+            ON CONFLICT (category) DO NOTHING;
+          `;
+        }
+        return [...DEFAULT_BUDGETS];
+      }
+    } catch (err) {
+      console.error('Error fetching budgets from Postgres:', err);
+    }
+  }
+
   return [...inMemoryBudgets];
 }
 
 export async function saveBudgets(budgets: CategoryBudget[]): Promise<CategoryBudget[]> {
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      for (const b of budgets) {
+        await sql`
+          INSERT INTO budgets (category, monthly_limit)
+          VALUES (${b.category}, ${b.monthly_limit})
+          ON CONFLICT (category) DO UPDATE SET monthly_limit = ${b.monthly_limit};
+        `;
+      }
+      return budgets;
+    } catch (err) {
+      console.error('Error saving budgets to Postgres:', err);
+    }
+  }
+
   inMemoryBudgets = budgets;
   saveToFile();
   return inMemoryBudgets;
 }
 
 export async function getMyAccounts(): Promise<MyAccount[]> {
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      const rows = await sql`SELECT id, name, identifier FROM my_accounts;`;
+      return rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        identifier: r.identifier
+      }));
+    } catch (err) {
+      console.error('Error fetching my_accounts from Postgres:', err);
+    }
+  }
+
+  loadFromFile();
   return [...inMemoryMyAccounts];
 }
 
@@ -202,12 +418,38 @@ export async function addMyAccount(account: Omit<MyAccount, 'id'>): Promise<MyAc
     ...account,
     id: `acc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
   };
+
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      await sql`
+        INSERT INTO my_accounts (id, name, identifier)
+        VALUES (${newAcc.id}, ${newAcc.name}, ${newAcc.identifier});
+      `;
+      return newAcc;
+    } catch (err) {
+      console.error('Error inserting my_account into Postgres:', err);
+    }
+  }
+
   inMemoryMyAccounts.push(newAcc);
   saveToFile();
   return newAcc;
 }
 
 export async function deleteMyAccount(id: string): Promise<boolean> {
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      await sql`DELETE FROM my_accounts WHERE id = ${id};`;
+      return true;
+    } catch (err) {
+      console.error('Error deleting my_account from Postgres:', err);
+    }
+  }
+
   inMemoryMyAccounts = inMemoryMyAccounts.filter(a => a.id !== id);
   saveToFile();
   return true;
