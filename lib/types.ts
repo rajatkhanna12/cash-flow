@@ -33,11 +33,13 @@ export interface SMSParseResult {
   confidence: number;
 }
 
-export type ReportingPeriod = 'today' | 'week' | 'month' | 'last_month' | '2_months_ago' | 'all';
+export type ReportingPeriod = 'today' | 'week' | 'month' | 'custom';
 
 export interface CashFlowStats {
   period: ReportingPeriod;
   periodLabel: string;
+  startDate?: string;
+  endDate?: string;
   totalInflow: number;
   totalOutflow: number;
   netCashFlow: number;

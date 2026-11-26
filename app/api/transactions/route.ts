@@ -6,7 +6,10 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const period = searchParams.get('period') as ReportingPeriod | undefined;
-    const transactions = await getTransactions(period || undefined);
+    const startDate = searchParams.get('startDate') || undefined;
+    const endDate = searchParams.get('endDate') || undefined;
+
+    const transactions = await getTransactions(period || undefined, startDate, endDate);
     return NextResponse.json({ success: true, transactions });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

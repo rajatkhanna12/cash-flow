@@ -23,7 +23,7 @@ import {
   Sparkles,
   BarChart3,
   Clock,
-  ArrowRight
+  CalendarRange
 } from 'lucide-react';
 import { Transaction, CashFlowStats, CategoryBudget, ReportingPeriod } from '@/lib/types';
 
@@ -54,24 +54,19 @@ const SAMPLE_SMS_TEMPLATES = [
   }
 ];
 
-const PERIOD_OPTIONS: Array<{ key: ReportingPeriod; label: string }> = [
-  { key: 'today', label: 'Aaj (Today)' },
-  { key: 'week', label: 'Is Hafte' },
-  { key: 'month', label: 'Is Mahine (Nov)' },
-  { key: 'last_month', label: 'Pichla Mahina (Oct)' },
-  { key: '2_months_ago', label: '2 Mahine Pehle (Sep)' },
-  { key: 'all', label: 'Sabhi (All Time)' },
-];
-
 export default function CashFlowApp() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [stats, setStats] = useState<CashFlowStats | null>(null);
   const [budgets, setBudgets] = useState<CategoryBudget[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'flow' | 'reporting' | 'budgets' | 'simulator' | 'iphone-setup'>('flow');
+  const [activeTab, setActiveTab] = useState<'flow' | 'budgets' | 'simulator' | 'iphone-setup'>('flow');
 
-  // Time Period Filter
+  // Exact Requested Filters: today | week | month | custom
   const [selectedPeriod, setSelectedPeriod] = useState<ReportingPeriod>('month');
+
+  // Custom Date Range State
+  const [customFromDate, setCustomFromDate] = useState('2026-09-01');
+  const [customToDate, setCustomToDate] = useState('2026-11-26');
 
   // Search & Type Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,12 +90,21 @@ export default function CashFlowApp() {
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
-  const fetchData = async (period: ReportingPeriod = selectedPeriod) => {
+  const fetchData = async (
+    period: ReportingPeriod = selectedPeriod,
+    fromD: string = customFromDate,
+    toD: string = customToDate
+  ) => {
     try {
       setLoading(true);
+      let query = `period=${period}`;
+      if (period === 'custom') {
+        query += `&startDate=${fromD}&endDate=${toD}`;
+      }
+
       const [txRes, statsRes, budgetRes] = await Promise.all([
-        fetch(`/api/transactions?period=${period}`),
-        fetch(`/api/stats?period=${period}`),
+        fetch(`/api/transactions?${query}`),
+        fetch(`/api/stats?${query}`),
         fetch('/api/budgets')
       ]);
 
@@ -119,11 +123,15 @@ export default function CashFlowApp() {
   };
 
   useEffect(() => {
-    fetchData(selectedPeriod);
+    fetchData(selectedPeriod, customFromDate, customToDate);
   }, [selectedPeriod]);
 
   const handlePeriodChange = (period: ReportingPeriod) => {
     setSelectedPeriod(period);
+  };
+
+  const handleApplyCustomDates = () => {
+    fetchData('custom', customFromDate, customToDate);
   };
 
   const handleSimulate = async (smsText: string) => {
@@ -142,7 +150,7 @@ export default function CashFlowApp() {
       const data = await res.json();
       setSimulatorResult(data);
       if (data.success) {
-        await fetchData(selectedPeriod);
+        await fetchData(selectedPeriod, customFromDate, customToDate);
       }
     } catch (err: any) {
       setSimulatorResult({ success: false, error: err.message });
@@ -171,7 +179,7 @@ export default function CashFlowApp() {
           category: 'Food & Dining',
           notes: ''
         });
-        await fetchData(selectedPeriod);
+        await fetchData(selectedPeriod, customFromDate, customToDate);
       }
     } catch (err) {
       console.error(err);
@@ -184,7 +192,7 @@ export default function CashFlowApp() {
       const res = await fetch(`/api/transactions?id=${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
-        await fetchData(selectedPeriod);
+        await fetchData(selectedPeriod, customFromDate, customToDate);
       }
     } catch (err) {
       console.error(err);
@@ -232,7 +240,7 @@ export default function CashFlowApp() {
                   Live
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400">Reports & Expense Control</p>
+              <p className="text-[10px] text-slate-400">Reporting & Expense Control</p>
             </div>
           </div>
 
@@ -245,7 +253,7 @@ export default function CashFlowApp() {
               <span>Naya Add</span>
             </button>
             <button
-              onClick={() => fetchData(selectedPeriod)}
+              onClick={() => fetchData(selectedPeriod, customFromDate, customToDate)}
               title="Refresh"
               className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 active:scale-95 transition"
             >
@@ -254,31 +262,100 @@ export default function CashFlowApp() {
           </div>
         </div>
 
-        {/* ⏱️ TIME PERIOD HORIZONTAL FILTER BAR */}
-        <div className="max-w-lg mx-auto px-3 py-2 overflow-x-auto flex items-center gap-1.5 border-t border-slate-100 no-scrollbar">
-          {PERIOD_OPTIONS.map(opt => (
+        {/* ⏱️ FILTERS: Today, This Week, Current Month, Custom Date */}
+        <div className="max-w-lg mx-auto px-3 py-2 border-t border-slate-100 space-y-2">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             <button
-              key={opt.key}
-              onClick={() => handlePeriodChange(opt.key)}
-              className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold transition ${
-                selectedPeriod === opt.key
+              onClick={() => handlePeriodChange('today')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center whitespace-nowrap ${
+                selectedPeriod === 'today'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              {opt.label}
+              Today
             </button>
-          ))}
+
+            <button
+              onClick={() => handlePeriodChange('week')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center whitespace-nowrap ${
+                selectedPeriod === 'week'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              This Week
+            </button>
+
+            <button
+              onClick={() => handlePeriodChange('month')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center whitespace-nowrap ${
+                selectedPeriod === 'month'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Current Month
+            </button>
+
+            <button
+              onClick={() => handlePeriodChange('custom')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center whitespace-nowrap flex items-center justify-center gap-1 ${
+                selectedPeriod === 'custom'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <CalendarRange className="h-3 w-3" />
+              Custom Date
+            </button>
+          </div>
+
+          {/* 📅 CUSTOM DATE RANGE PICKER (EXPANDS WHEN CUSTOM DATE IS ACTIVE) */}
+          {selectedPeriod === 'custom' && (
+            <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 space-y-2 animate-in fade-in duration-200">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">
+                    From Date
+                  </label>
+                  <input
+                    type="date"
+                    value={customFromDate}
+                    onChange={e => setCustomFromDate(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">
+                    To Date
+                  </label>
+                  <input
+                    type="date"
+                    value={customToDate}
+                    onChange={e => setCustomToDate(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-xs"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleApplyCustomDates}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white py-1.5 rounded-lg text-xs font-bold shadow-xs transition"
+              >
+                Apply Date Range
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
       {/* 📱 MAIN VIEW */}
       <main className="max-w-lg mx-auto px-4 py-3 w-full space-y-4 flex-1">
-        {/* PERIOD INDICATOR BANNER */}
+        {/* ACTIVE TIMEFRAME STATUS PILL */}
         <div className="flex items-center justify-between text-xs text-slate-500 bg-white/70 px-3 py-1.5 rounded-xl border border-slate-200/60">
-          <span className="font-semibold text-slate-700 flex items-center gap-1">
+          <span className="font-semibold text-slate-700 flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5 text-emerald-600" />
-            Showing: {stats?.periodLabel || 'Is Mahine'}
+            <span>Filter: {stats?.periodLabel}</span>
           </span>
           <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-md font-bold text-slate-600">
             {stats?.transactionCount || 0} Transactions
@@ -316,7 +393,7 @@ export default function CashFlowApp() {
         {/* 📊 TAB 1: FLOW & SUMMARY FOR SELECTED PERIOD */}
         {activeTab === 'flow' && (
           <div className="space-y-4">
-            {/* HERO CASH FLOW CARD FOR CHOSEN PERIOD */}
+            {/* HERO CASH FLOW CARD FOR CHOSEN FILTER */}
             <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3.5">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <div>
@@ -382,24 +459,7 @@ export default function CashFlowApp() {
               </div>
             </div>
 
-            {/* MONTH-ON-MONTH COMPARISON (If viewing Current Month) */}
-            {stats?.comparison && (
-              <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-3.5 text-xs text-blue-900 flex items-center justify-between">
-                <div>
-                  <span className="font-bold block text-blue-950">Pichle Mahine Se Muqabla (Oct vs Nov):</span>
-                  <p className="text-[11px] text-blue-800 mt-0.5">
-                    {stats.comparison.isHigher
-                      ? `Pichle mahine se ₹${stats.comparison.diffAmount} (+${stats.comparison.percentageChange}%) zyada kharch hua hai.`
-                      : `Pichle mahine se ₹${stats.comparison.diffAmount} (-${stats.comparison.percentageChange}%) kam kharch hua hai! Bachat achi hai.`}
-                  </p>
-                </div>
-                <span className="text-base">
-                  {stats.comparison.isHigher ? '📈' : '🎉'}
-                </span>
-              </div>
-            )}
-
-            {/* CATEGORY BREAKDOWN FOR CHOSEN TIME PERIOD */}
+            {/* CATEGORY EXPENSE SHARE FOR CHOSEN FILTER */}
             <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -444,9 +504,9 @@ export default function CashFlowApp() {
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <div>
                   <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Transactions ({stats?.periodLabel})
+                    Transactions List
                   </h2>
-                  <p className="text-[10px] text-slate-400">Is period ki entry list</p>
+                  <p className="text-[10px] text-slate-400">{stats?.periodLabel}</p>
                 </div>
 
                 <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-semibold">
@@ -474,7 +534,7 @@ export default function CashFlowApp() {
               <div className="divide-y divide-slate-100">
                 {filteredTransactions.length === 0 ? (
                   <div className="text-center py-8 text-xs text-slate-400">
-                    Is time period mein koi transaction nahi mila.
+                    Is selected dates mein koi transaction nahi mila.
                   </div>
                 ) : (
                   filteredTransactions.map(tx => (
@@ -498,7 +558,7 @@ export default function CashFlowApp() {
                           <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
                             <span className="text-slate-600 font-medium">{tx.category}</span>
                             <span>•</span>
-                            <span>{new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                            <span>{new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                           </div>
                         </div>
                       </div>
@@ -527,59 +587,7 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 📈 TAB 2: DETAILED REPORTING COMPARISON */}
-        {activeTab === 'reporting' && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
-            <div className="border-b border-slate-100 pb-2.5">
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <BarChart3 className="h-4 w-4 text-emerald-600" />
-                Comprehensive Cash Flow Report
-              </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Upar time period chun kar aap Today, This Week, Pichla Mahina ya 2 Mahine Pehle ka hisaab dekh sakte hain.
-              </p>
-            </div>
-
-            {/* Period Summary Grid */}
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">Kul Inflow</span>
-                <p className="text-sm font-extrabold text-emerald-700 mt-0.5">{formatCurrency(inflow)}</p>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">Kul Outflow</span>
-                <p className="text-sm font-extrabold text-rose-700 mt-0.5">{formatCurrency(outflow)}</p>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <span className="text-[10px] text-slate-400 uppercase font-bold">Net Bachat</span>
-                <p className={`text-sm font-extrabold mt-0.5 ${net >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>
-                  {formatCurrency(net)}
-                </p>
-              </div>
-            </div>
-
-            {/* Category breakdown table */}
-            <div className="space-y-2 pt-2">
-              <span className="text-xs font-bold text-slate-900">Category Expense Share:</span>
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                {stats &&
-                  Object.entries(stats.categorySpending)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([cat, spent]) => (
-                      <div key={cat} className="flex justify-between items-center p-2.5 text-xs bg-white hover:bg-slate-50">
-                        <div>
-                          <span className="font-semibold text-slate-900">{cat}</span>
-                          <span className="text-[10px] text-slate-400 block">{stats.categoryPercentages[cat]}% of total expense</span>
-                        </div>
-                        <span className="font-bold text-slate-800">{formatCurrency(spent)}</span>
-                      </div>
-                    ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 🛡️ TAB 3: KHARCH CONTROL & BUDGETS */}
+        {/* 🛡️ TAB 2: KHARCH CONTROL & BUDGETS */}
         {activeTab === 'budgets' && (
           <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
             <div className="border-b border-slate-100 pb-2.5">
@@ -642,7 +650,7 @@ export default function CashFlowApp() {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ budgets })
                 });
-                await fetchData(selectedPeriod);
+                await fetchData(selectedPeriod, customFromDate, customToDate);
                 alert('Limits successfully save ho gayi hain!');
               }}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs transition"
@@ -652,7 +660,7 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 🧪 TAB 4: SMS TESTER */}
+        {/* 🧪 TAB 3: SMS TESTER */}
         {activeTab === 'simulator' && (
           <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3.5">
             <div>
@@ -729,7 +737,7 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 📱 TAB 5: IPHONE SETUP GUIDE */}
+        {/* 📱 TAB 4: IPHONE SETUP GUIDE */}
         {activeTab === 'iphone-setup' && (
           <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
             <div className="border-b border-slate-100 pb-2.5">
@@ -831,7 +839,7 @@ export default function CashFlowApp() {
 
       {/* 📱 NATIVE iOS STYLE FIXED BOTTOM NAVIGATION BAR */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200/90 z-40 shadow-lg">
-        <div className="max-w-lg mx-auto px-2 h-16 flex items-center justify-around">
+        <div className="max-w-lg mx-auto px-4 h-16 flex items-center justify-around">
           <button
             onClick={() => setActiveTab('flow')}
             className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
@@ -840,16 +848,6 @@ export default function CashFlowApp() {
           >
             <Wallet className="h-5 w-5" />
             <span className="text-[10px] mt-1">Cash Flow</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('reporting')}
-            className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
-              activeTab === 'reporting' ? 'text-emerald-600 font-bold' : 'text-slate-400 font-medium'
-            }`}
-          >
-            <BarChart3 className="h-5 w-5" />
-            <span className="text-[10px] mt-1">Reports</span>
           </button>
 
           <button

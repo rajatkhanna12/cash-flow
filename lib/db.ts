@@ -13,10 +13,9 @@ export const DEFAULT_BUDGETS: CategoryBudget[] = [
   { category: 'Other Expenses', monthly_limit: 5000 },
 ];
 
-// Reference current date: 26 Nov 2026
+// Current reference timestamp: 26 Nov 2026
 const NOW = new Date('2026-11-26T10:30:00Z');
 
-// Seed realistic multi-month data: Today, This Week, This Month (Nov 2026), Last Month (Oct 2026), 2 Months Ago (Sep 2026)
 const SEED_TRANSACTIONS: Transaction[] = [
   // --- TODAY (26 Nov 2026) ---
   {
@@ -82,7 +81,7 @@ const SEED_TRANSACTIONS: Transaction[] = [
     raw_sms: 'Your A/C **1234 is credited by Rs 15,000.00 from Client VPA.'
   },
 
-  // --- REST OF THIS MONTH (Nov 2026) ---
+  // --- EARLIER THIS MONTH (Nov 2026) ---
   {
     id: 'tx-nov-1',
     amount: 85000,
@@ -93,7 +92,6 @@ const SEED_TRANSACTIONS: Transaction[] = [
     reference: '433100100006',
     date: new Date('2026-11-01T04:30:00Z').toISOString(),
     created_at: new Date('2026-11-01T04:30:00Z').toISOString(),
-    raw_sms: 'HDFC Bank: Rs 85,000.00 credited to a/c **1234. Salary.'
   },
   {
     id: 'tx-nov-2',
@@ -162,7 +160,7 @@ const SEED_TRANSACTIONS: Transaction[] = [
     created_at: new Date('2026-11-03T05:00:00Z').toISOString(),
   },
 
-  // --- LAST MONTH: OCTOBER 2026 (Pichla Mahina) ---
+  // --- PAST MONTHS (For Custom Date Range Testing) ---
   {
     id: 'tx-oct-1',
     amount: 85000,
@@ -179,7 +177,7 @@ const SEED_TRANSACTIONS: Transaction[] = [
     amount: 12500,
     type: 'outflow',
     category: 'Shopping',
-    merchant: 'Diwali Festive Shopping (Flipkart & Amazon)',
+    merchant: 'Diwali Festive Shopping',
     account: 'A/C **1234',
     reference: '433100200002',
     date: new Date('2026-10-25T14:00:00Z').toISOString(),
@@ -208,30 +206,6 @@ const SEED_TRANSACTIONS: Transaction[] = [
     created_at: new Date('2026-10-15T09:00:00Z').toISOString(),
   },
   {
-    id: 'tx-oct-5',
-    amount: 4600,
-    type: 'outflow',
-    category: 'Travel & Fuel',
-    merchant: 'Petrol & Outstation Travel',
-    account: 'A/C **1234',
-    reference: '433100200005',
-    date: new Date('2026-10-10T12:00:00Z').toISOString(),
-    created_at: new Date('2026-10-10T12:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-oct-6',
-    amount: 3200,
-    type: 'outflow',
-    category: 'Bills & Utilities',
-    merchant: 'Electricity & Gas bill',
-    account: 'A/C **1234',
-    reference: '433100200006',
-    date: new Date('2026-10-06T08:00:00Z').toISOString(),
-    created_at: new Date('2026-10-06T08:00:00Z').toISOString(),
-  },
-
-  // --- 2 MONTHS AGO: SEPTEMBER 2026 (2 Mahine Pehle) ---
-  {
     id: 'tx-sep-1',
     amount: 85000,
     type: 'inflow',
@@ -244,17 +218,6 @@ const SEED_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-sep-2',
-    amount: 20000,
-    type: 'inflow',
-    category: 'Salary & Income',
-    merchant: 'Freelance Consulting',
-    account: 'A/C **1234',
-    reference: '433100300002',
-    date: new Date('2026-09-18T10:00:00Z').toISOString(),
-    created_at: new Date('2026-09-18T10:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-sep-3',
     amount: 6800,
     type: 'outflow',
     category: 'Food & Dining',
@@ -265,7 +228,7 @@ const SEED_TRANSACTIONS: Transaction[] = [
     created_at: new Date('2026-09-22T13:00:00Z').toISOString(),
   },
   {
-    id: 'tx-sep-4',
+    id: 'tx-sep-3',
     amount: 5100,
     type: 'outflow',
     category: 'Groceries',
@@ -274,39 +237,6 @@ const SEED_TRANSACTIONS: Transaction[] = [
     reference: '433100300004',
     date: new Date('2026-09-15T15:00:00Z').toISOString(),
     created_at: new Date('2026-09-15T15:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-sep-5',
-    amount: 4200,
-    type: 'outflow',
-    category: 'Shopping',
-    merchant: 'Zara & Myntra',
-    account: 'A/C **1234',
-    reference: '433100300005',
-    date: new Date('2026-09-10T11:00:00Z').toISOString(),
-    created_at: new Date('2026-09-10T11:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-sep-6',
-    amount: 3500,
-    type: 'outflow',
-    category: 'Travel & Fuel',
-    merchant: 'Fuel & Metro',
-    account: 'A/C **1234',
-    reference: '433100300006',
-    date: new Date('2026-09-08T09:00:00Z').toISOString(),
-    created_at: new Date('2026-09-08T09:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-sep-7',
-    amount: 3000,
-    type: 'outflow',
-    category: 'Bills & Utilities',
-    merchant: 'Utility Bills',
-    account: 'A/C **1234',
-    reference: '433100300007',
-    date: new Date('2026-09-04T07:00:00Z').toISOString(),
-    created_at: new Date('2026-09-04T07:00:00Z').toISOString(),
   }
 ];
 
@@ -368,11 +298,16 @@ function saveToFile() {
 
 loadFromFile();
 
-// Filter helper by time period
-export function filterTransactionsByPeriod(transactions: Transaction[], period: ReportingPeriod = 'month'): Transaction[] {
+// Filter function supporting: today, week, month, custom (From date - To date)
+export function filterTransactionsByPeriod(
+  transactions: Transaction[],
+  period: ReportingPeriod = 'month',
+  startDateStr?: string,
+  endDateStr?: string
+): Transaction[] {
   const now = new Date(NOW);
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const endOfToday = startOfToday + 86400000;
+  const endOfToday = startOfToday + 86400000 - 1;
 
   return transactions.filter(t => {
     const tTime = new Date(t.date).getTime();
@@ -380,43 +315,45 @@ export function filterTransactionsByPeriod(transactions: Transaction[], period: 
 
     switch (period) {
       case 'today':
-        return tTime >= startOfToday && tTime < endOfToday;
+        return tTime >= startOfToday && tTime <= endOfToday;
 
       case 'week': {
-        // Last 7 days
-        const sevenDaysAgo = startOfToday - 6 * 86400000;
-        return tTime >= sevenDaysAgo && tTime < endOfToday;
+        // This Week: last 7 days including today
+        const startOfWeek = startOfToday - 6 * 86400000;
+        return tTime >= startOfWeek && tTime <= endOfToday;
       }
 
       case 'month':
         // Current Month (Nov 2026)
         return tDate.getFullYear() === now.getFullYear() && tDate.getMonth() === now.getMonth();
 
-      case 'last_month': {
-        // October 2026
-        const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        return tDate.getFullYear() === lastMonthDate.getFullYear() && tDate.getMonth() === lastMonthDate.getMonth();
+      case 'custom': {
+        if (!startDateStr && !endDateStr) return true;
+        const fromTime = startDateStr
+          ? new Date(`${startDateStr}T00:00:00`).getTime()
+          : 0;
+        const toTime = endDateStr
+          ? new Date(`${endDateStr}T23:59:59.999`).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        return tTime >= fromTime && tTime <= toTime;
       }
 
-      case '2_months_ago': {
-        // September 2026
-        const twoMonthsAgoDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-        return tDate.getFullYear() === twoMonthsAgoDate.getFullYear() && tDate.getMonth() === twoMonthsAgoDate.getMonth();
-      }
-
-      case 'all':
       default:
         return true;
     }
   });
 }
 
-export async function getTransactions(period?: ReportingPeriod): Promise<Transaction[]> {
+export async function getTransactions(
+  period?: ReportingPeriod,
+  startDate?: string,
+  endDate?: string
+): Promise<Transaction[]> {
   const list = [...inMemoryTransactions].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
   if (period) {
-    return filterTransactionsByPeriod(list, period);
+    return filterTransactionsByPeriod(list, period, startDate, endDate);
   }
   return list;
 }
@@ -462,12 +399,16 @@ export async function saveBudgets(budgets: CategoryBudget[]): Promise<CategoryBu
   return inMemoryBudgets;
 }
 
-// Compute dynamic reporting stats for any period: Today, Week, Month, Last Month, 2 Months Ago
-export async function getCashFlowStats(period: ReportingPeriod = 'month'): Promise<CashFlowStats> {
+// Compute Cash Flow statistics for Today, This Week, Current Month, or Custom Date Range
+export async function getCashFlowStats(
+  period: ReportingPeriod = 'month',
+  startDateStr?: string,
+  endDateStr?: string
+): Promise<CashFlowStats> {
   const allTransactions = await getTransactions();
   const budgets = await getBudgets();
 
-  const periodTxs = filterTransactionsByPeriod(allTransactions, period);
+  const periodTxs = filterTransactionsByPeriod(allTransactions, period, startDateStr, endDateStr);
 
   let totalInflow = 0;
   let totalOutflow = 0;
@@ -490,63 +431,41 @@ export async function getCashFlowStats(period: ReportingPeriod = 'month'): Promi
   const netCashFlow = totalInflow - totalOutflow;
   const savingsRate = totalInflow > 0 ? Math.max(0, Math.round(((totalInflow - totalOutflow) / totalInflow) * 100)) : 0;
 
-  // Category percentage of total expenses
   const categoryPercentages: Record<string, number> = {};
   for (const [cat, spent] of Object.entries(categorySpending)) {
     categoryPercentages[cat] = totalOutflow > 0 ? Math.round((spent / totalOutflow) * 100) : 0;
   }
 
-  // Days calculation
-  let daysInPeriod = 1;
-  let periodLabel = 'Is Mahine (November)';
+  let daysCount = 1;
+  let periodLabel = 'Current Month (November)';
 
   switch (period) {
     case 'today':
-      daysInPeriod = 1;
-      periodLabel = 'Aaj (Today - 26 Nov)';
+      daysCount = 1;
+      periodLabel = 'Today (26 Nov 2026)';
       break;
     case 'week':
-      daysInPeriod = 7;
-      periodLabel = 'Is Hafte (Last 7 Days)';
+      daysCount = 7;
+      periodLabel = 'This Week (Past 7 Days)';
       break;
     case 'month':
-      daysInPeriod = 26; // up to 26th of Nov
-      periodLabel = 'Is Mahine (November 2026)';
+      daysCount = 26;
+      periodLabel = 'Current Month (Nov 2026)';
       break;
-    case 'last_month':
-      daysInPeriod = 31;
-      periodLabel = 'Pichla Mahina (October 2026)';
-      break;
-    case '2_months_ago':
-      daysInPeriod = 30;
-      periodLabel = '2 Mahine Pehle (September 2026)';
-      break;
-    case 'all':
-      daysInPeriod = 90;
-      periodLabel = 'All Time Reporting';
+    case 'custom':
+      if (startDateStr && endDateStr) {
+        const d1 = new Date(startDateStr).getTime();
+        const d2 = new Date(endDateStr).getTime();
+        daysCount = Math.max(1, Math.round((d2 - d1) / 86400000) + 1);
+        periodLabel = `${startDateStr} to ${endDateStr}`;
+      } else {
+        periodLabel = 'Custom Date Range';
+      }
       break;
   }
 
-  const dailyBurnRate = Math.round(totalOutflow / Math.max(1, daysInPeriod));
+  const dailyBurnRate = Math.round(totalOutflow / Math.max(1, daysCount));
   const projectedMonthlyOutflow = dailyBurnRate * 30;
-
-  // Comparison with previous period (e.g. Month vs Last Month)
-  let comparison: CashFlowStats['comparison'];
-  if (period === 'month') {
-    const prevTxs = filterTransactionsByPeriod(allTransactions, 'last_month');
-    let prevOutflow = 0;
-    prevTxs.forEach(t => {
-      if (t.type === 'outflow') prevOutflow += t.amount;
-    });
-    const diff = totalOutflow - prevOutflow;
-    const pct = prevOutflow > 0 ? Math.abs(Math.round((diff / prevOutflow) * 100)) : 0;
-    comparison = {
-      prevOutflow,
-      diffAmount: Math.abs(diff),
-      percentageChange: pct,
-      isHigher: diff > 0
-    };
-  }
 
   // Generate budget alerts
   const alerts: CashFlowStats['alerts'] = [];
@@ -575,6 +494,8 @@ export async function getCashFlowStats(period: ReportingPeriod = 'month'): Promi
   return {
     period,
     periodLabel,
+    startDate: startDateStr,
+    endDate: endDateStr,
     totalInflow,
     totalOutflow,
     netCashFlow,
@@ -585,7 +506,6 @@ export async function getCashFlowStats(period: ReportingPeriod = 'month'): Promi
     categorySpending,
     categoryPercentages,
     categoryBudgets: categoryBudgetsMap,
-    comparison,
     alerts
   };
 }
