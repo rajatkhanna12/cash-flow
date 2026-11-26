@@ -235,6 +235,21 @@ export function parseBankSMS(
     reference = refMatch[1].trim();
   }
 
+  // 7b. Extract Explicit Time if present in SMS (e.g. "at 13:45" or "1:45 PM")
+  const txDate = new Date(defaultDate);
+  const timeRegex = /(?:at\s+|time\s+)?(\b\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?\b/i;
+  const timeMatch = text.match(timeRegex);
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = parseInt(timeMatch[2], 10);
+    const ampm = timeMatch[4]?.toLowerCase();
+    if (ampm === 'pm' && hours < 12) hours += 12;
+    if (ampm === 'am' && hours === 12) hours = 0;
+    if (hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60) {
+      txDate.setHours(hours, minutes, 0, 0);
+    }
+  }
+
   // 8. Auto-Categorize
   let category = isSelfTransfer
     ? 'Self Transfer'
@@ -265,7 +280,7 @@ export function parseBankSMS(
     merchant: capitalizeWords(merchant),
     account,
     reference,
-    date: defaultDate.toISOString(),
+    date: txDate.toISOString(),
     confidence: isSelfTransfer ? 0.99 : reference ? 0.95 : 0.85
   };
 }

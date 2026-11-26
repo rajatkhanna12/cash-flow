@@ -822,7 +822,9 @@ export default function CashFlowApp() {
                             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 flex-wrap">
                               <span className="text-slate-700 font-medium">{tx.category}</span>
                               {tx.account && <span>• {tx.account}</span>}
-                              <span>• {new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                              <span>
+                                • {new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}, {new Date(tx.date).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                              </span>
                             </div>
                           </div>
                         </div>
