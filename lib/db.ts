@@ -2,6 +2,19 @@ import { Transaction, CategoryBudget, CashFlowStats, ReportingPeriod, MyAccount 
 import fs from 'fs';
 import path from 'path';
 import { neon } from '@neondatabase/serverless';
+import {
+  isMssqlConfigured,
+  mssqlGetTransactions,
+  mssqlAddTransaction,
+  mssqlUpdateTransaction,
+  mssqlDeleteTransaction,
+  mssqlClearAllTransactions,
+  mssqlGetBudgets,
+  mssqlSaveBudgets,
+  mssqlGetMyAccounts,
+  mssqlAddMyAccount,
+  mssqlDeleteMyAccount
+} from './mssql';
 
 export const DEFAULT_BUDGETS: CategoryBudget[] = [
   { category: 'Food & Dining', monthly_limit: 8000 },
@@ -80,10 +93,15 @@ function saveToFile() {
 loadFromFile();
 
 // 🚀 PostgreSQL (Neon / Supabase / Vercel Postgres) Connection
-function getSql() {
+function isPostgresConfigured() {
   const dbUrl = process.env.DATABASE_URL;
-  if (!dbUrl) return null;
-  return neon(dbUrl);
+  if (!dbUrl) return false;
+  return dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://');
+}
+
+function getSql() {
+  if (!isPostgresConfigured()) return null;
+  return neon(process.env.DATABASE_URL!);
 }
 
 let dbInitialized = false;
@@ -173,6 +191,20 @@ export async function getTransactions(
   startDateStr?: string,
   endDateStr?: string
 ): Promise<Transaction[]> {
+  // 1. Check SQL Server
+  if (isMssqlConfigured()) {
+    try {
+      let list = await mssqlGetTransactions();
+      if (period) {
+        list = filterTransactionsByPeriod(list, period, startDateStr, endDateStr);
+      }
+      return list;
+    } catch (err) {
+      console.error('MSSQL getTransactions error:', err);
+    }
+  }
+
+  // 2. Check Postgres
   const sql = getSql();
   if (sql) {
     try {
@@ -205,6 +237,7 @@ export async function getTransactions(
     }
   }
 
+  // 3. Fallback
   loadFromFile();
   let list = [...inMemoryTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   if (period) {
@@ -220,6 +253,17 @@ export async function addTransaction(transaction: Omit<Transaction, 'id'>): Prom
     created_at: transaction.created_at || new Date().toISOString()
   };
 
+  // 1. Check SQL Server
+  if (isMssqlConfigured()) {
+    try {
+      await mssqlAddTransaction(newTx);
+      return newTx;
+    } catch (err) {
+      console.error('MSSQL addTransaction error:', err);
+    }
+  }
+
+  // 2. Check Postgres
   const sql = getSql();
   if (sql) {
     try {
@@ -246,12 +290,25 @@ export async function addTransaction(transaction: Omit<Transaction, 'id'>): Prom
     }
   }
 
+  // 3. Fallback
   inMemoryTransactions.unshift(newTx);
   saveToFile();
   return newTx;
 }
 
 export async function updateTransaction(id: string, updates: Partial<Transaction>): Promise<Transaction | null> {
+  // 1. Check SQL Server
+  if (isMssqlConfigured()) {
+    try {
+      await mssqlUpdateTransaction(id, updates);
+      const all = await mssqlGetTransactions();
+      return all.find(t => t.id === id) || null;
+    } catch (err) {
+      console.error('MSSQL updateTransaction error:', err);
+    }
+  }
+
+  // 2. Check Postgres
   const sql = getSql();
   if (sql) {
     try {
@@ -295,6 +352,17 @@ export async function updateTransaction(id: string, updates: Partial<Transaction
 }
 
 export async function deleteTransaction(id: string): Promise<boolean> {
+  // 1. Check SQL Server
+  if (isMssqlConfigured()) {
+    try {
+      await mssqlDeleteTransaction(id);
+      return true;
+    } catch (err) {
+      console.error('MSSQL deleteTransaction error:', err);
+    }
+  }
+
+  // 2. Check Postgres
   const sql = getSql();
   if (sql) {
     try {
@@ -312,6 +380,17 @@ export async function deleteTransaction(id: string): Promise<boolean> {
 }
 
 export async function clearAllTransactions(): Promise<boolean> {
+  // 1. Check SQL Server
+  if (isMssqlConfigured()) {
+    try {
+      await mssqlClearAllTransactions();
+      return true;
+    } catch (err) {
+      console.error('MSSQL clearAllTransactions error:', err);
+    }
+  }
+
+  // 2. Check Postgres
   const sql = getSql();
   if (sql) {
     try {
@@ -342,6 +421,19 @@ export async function isDuplicateTransaction(
 }
 
 export async function getBudgets(): Promise<CategoryBudget[]> {
+  // 1. Check SQL Server
+  if (isMssqlConfigured()) {
+    try {
+      const b = await mssqlGetBudgets();
+      if (b.length > 0) return b;
+      await mssqlSaveBudgets(DEFAULT_BUDGETS);
+      return [...DEFAULT_BUDGETS];
+    } catch (err) {
+      console.error('MSSQL getBudgets error:', err);
+    }
+  }
+
+  // 2. Check Postgres
   const sql = getSql();
   if (sql) {
     try {
@@ -371,6 +463,17 @@ export async function getBudgets(): Promise<CategoryBudget[]> {
 }
 
 export async function saveBudgets(budgets: CategoryBudget[]): Promise<CategoryBudget[]> {
+  // 1. Check SQL Server
+  if (isMssqlConfigured()) {
+    try {
+      await mssqlSaveBudgets(budgets);
+      return budgets;
+    } catch (err) {
+      console.error('MSSQL saveBudgets error:', err);
+    }
+  }
+
+  // 2. Check Postgres
   const sql = getSql();
   if (sql) {
     try {
@@ -394,6 +497,16 @@ export async function saveBudgets(budgets: CategoryBudget[]): Promise<CategoryBu
 }
 
 export async function getMyAccounts(): Promise<MyAccount[]> {
+  // 1. Check SQL Server
+  if (isMssqlConfigured()) {
+    try {
+      return await mssqlGetMyAccounts();
+    } catch (err) {
+      console.error('MSSQL getMyAccounts error:', err);
+    }
+  }
+
+  // 2. Check Postgres
   const sql = getSql();
   if (sql) {
     try {
@@ -419,6 +532,17 @@ export async function addMyAccount(account: Omit<MyAccount, 'id'>): Promise<MyAc
     id: `acc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
   };
 
+  // 1. Check SQL Server
+  if (isMssqlConfigured()) {
+    try {
+      await mssqlAddMyAccount(newAcc);
+      return newAcc;
+    } catch (err) {
+      console.error('MSSQL addMyAccount error:', err);
+    }
+  }
+
+  // 2. Check Postgres
   const sql = getSql();
   if (sql) {
     try {
@@ -439,6 +563,17 @@ export async function addMyAccount(account: Omit<MyAccount, 'id'>): Promise<MyAc
 }
 
 export async function deleteMyAccount(id: string): Promise<boolean> {
+  // 1. Check SQL Server
+  if (isMssqlConfigured()) {
+    try {
+      await mssqlDeleteMyAccount(id);
+      return true;
+    } catch (err) {
+      console.error('MSSQL deleteMyAccount error:', err);
+    }
+  }
+
+  // 2. Check Postgres
   const sql = getSql();
   if (sql) {
     try {
