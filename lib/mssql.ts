@@ -163,6 +163,15 @@ async function ensureDatabaseAndTables(config: sql.config): Promise<sql.Connecti
       category NVARCHAR(100) PRIMARY KEY,
       monthly_limit DECIMAL(18,2) NOT NULL
     );
+
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='push_subscriptions' AND xtype='U')
+    CREATE TABLE push_subscriptions (
+      id NVARCHAR(100) PRIMARY KEY,
+      endpoint NVARCHAR(MAX) NOT NULL,
+      p256dh NVARCHAR(500) NOT NULL,
+      auth NVARCHAR(500) NOT NULL,
+      created_at DATETIME2 DEFAULT GETDATE()
+    );
   `);
 
   initialized = true;
@@ -337,4 +346,41 @@ export async function mssqlDeleteMyAccount(id: string): Promise<void> {
   const req = p.request();
   req.input('id', sql.NVarChar(100), id);
   await req.query('DELETE FROM my_accounts WHERE id = @id;');
+}
+
+export async function mssqlGetPushSubscriptions(): Promise<any[]> {
+  const p = await getMssqlPool();
+  const res = await p.request().query('SELECT id, endpoint, p256dh, auth, created_at FROM push_subscriptions;');
+  return res.recordset.map((r: any) => ({
+    id: r.id,
+    endpoint: r.endpoint,
+    keys: {
+      p256dh: r.p256dh,
+      auth: r.auth
+    },
+    created_at: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString()
+  }));
+}
+
+export async function mssqlSavePushSubscription(sub: any): Promise<void> {
+  const p = await getMssqlPool();
+  const req = p.request();
+  const id = `sub-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  req.input('id', sql.NVarChar(100), id);
+  req.input('endpoint', sql.NVarChar(sql.MAX), sub.endpoint);
+  req.input('p256dh', sql.NVarChar(500), sub.keys.p256dh);
+  req.input('auth', sql.NVarChar(500), sub.keys.auth);
+  await req.query(`
+    IF EXISTS (SELECT 1 FROM push_subscriptions WHERE endpoint = @endpoint)
+      UPDATE push_subscriptions SET p256dh = @p256dh, auth = @auth WHERE endpoint = @endpoint;
+    ELSE
+      INSERT INTO push_subscriptions (id, endpoint, p256dh, auth) VALUES (@id, @endpoint, @p256dh, @auth);
+  `);
+}
+
+export async function mssqlDeletePushSubscription(endpoint: string): Promise<void> {
+  const p = await getMssqlPool();
+  const req = p.request();
+  req.input('endpoint', sql.NVarChar(sql.MAX), endpoint);
+  await req.query('DELETE FROM push_subscriptions WHERE endpoint = @endpoint;');
 }

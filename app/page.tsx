@@ -238,6 +238,32 @@ export default function CashFlowApp() {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
       if (Notification.permission === 'granted') {
         setPushStatus('granted');
+        // Auto sync subscription with server in background
+        navigator.serviceWorker.ready.then(async reg => {
+          try {
+            let sub = await reg.pushManager.getSubscription();
+            if (!sub) {
+              const keyRes = await fetch('/api/push');
+              const keyData = await keyRes.json();
+              if (keyData.publicKey) {
+                const convertedKey = urlBase64ToUint8Array(keyData.publicKey);
+                sub = await reg.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: convertedKey
+                });
+              }
+            }
+            if (sub) {
+              await fetch('/api/push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(sub)
+              });
+            }
+          } catch (e) {
+            console.error('Silent push sync error:', e);
+          }
+        });
       } else if (Notification.permission === 'denied') {
         setPushStatus('denied');
       } else {
@@ -308,17 +334,49 @@ export default function CashFlowApp() {
   const handleSendTestPush = async () => {
     try {
       setPushLoading(true);
-      const res = await fetch('/api/push', {
+      let res = await fetch('/api/push', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       });
-      const data = await res.json();
+      let data = await res.json();
+
+      // Auto self-heal: if server has no record of subscription, re-register and retry
+      if (!data.success && (data.error?.toLowerCase().includes('no active push') || data.error?.toLowerCase().includes('subscription'))) {
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+          const reg = await navigator.serviceWorker.ready;
+          let sub = await reg.pushManager.getSubscription();
+          if (!sub) {
+            const keyRes = await fetch('/api/push');
+            const keyData = await keyRes.json();
+            const convertedKey = urlBase64ToUint8Array(keyData.publicKey);
+            sub = await reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: convertedKey
+            });
+          }
+          if (sub) {
+            await fetch('/api/push', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(sub)
+            });
+            // Retry test send
+            res = await fetch('/api/push', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({})
+            });
+            data = await res.json();
+          }
+        }
+      }
+
       if (data.success) {
         setPushMessage('Push delivered! 🔔');
         setTimeout(() => setPushMessage(''), 3000);
       } else {
-        alert('Push error: ' + (data.error || 'Failed'));
+        alert('Push status: ' + (data.error || 'Failed'));
       }
     } catch (err: any) {
       alert('Error: ' + err.message);

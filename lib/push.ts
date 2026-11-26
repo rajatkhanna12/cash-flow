@@ -1,7 +1,12 @@
 import { setVapidDetails, sendNotification } from 'web-push';
 import fs from 'fs';
 import path from 'path';
-import { getCashFlowStats } from './db';
+import {
+  getCashFlowStats,
+  savePushSubscriptionDb,
+  getPushSubscriptionsDb,
+  deletePushSubscriptionDb
+} from './db';
 
 export const VAPID_PUBLIC_KEY =
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
@@ -25,12 +30,16 @@ export interface PushSubscriptionItem {
   created_at: string;
 }
 
-const SUBSCRIPTIONS_FILE = path.join(process.cwd(), 'data', 'push_subscriptions.json');
+const IS_SERVERLESS = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+const RUNTIME_DIR = IS_SERVERLESS ? '/tmp' : path.join(process.cwd(), 'data');
+const SUBSCRIPTIONS_FILE = path.join(RUNTIME_DIR, 'push_subscriptions.json');
+
+// In-memory cache for fast local access
+let inMemorySubscriptions: PushSubscriptionItem[] = [];
 
 function ensureFile() {
   try {
-    const dir = path.dirname(SUBSCRIPTIONS_FILE);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(RUNTIME_DIR)) fs.mkdirSync(RUNTIME_DIR, { recursive: true });
     if (!fs.existsSync(SUBSCRIPTIONS_FILE)) {
       fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify([]));
     }
@@ -38,23 +47,54 @@ function ensureFile() {
 }
 
 export async function getPushSubscriptions(): Promise<PushSubscriptionItem[]> {
+  // 1. Try Database (Postgres / MSSQL)
+  try {
+    const dbSubs = await getPushSubscriptionsDb();
+    if (dbSubs !== null) {
+      return dbSubs.map(s => ({
+        id: s.id,
+        endpoint: s.endpoint,
+        keys: s.keys,
+        created_at: s.created_at || new Date().toISOString()
+      }));
+    }
+  } catch (err) {
+    console.error('Error fetching push subs from DB:', err);
+  }
+
+  // 2. Fallback to /tmp or data file
   ensureFile();
   try {
     if (fs.existsSync(SUBSCRIPTIONS_FILE)) {
       const data = fs.readFileSync(SUBSCRIPTIONS_FILE, 'utf-8');
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        inMemorySubscriptions = parsed;
+        return parsed;
+      }
     }
   } catch {}
-  return [];
+
+  return inMemorySubscriptions;
 }
 
 export async function savePushSubscription(sub: any): Promise<boolean> {
   if (!sub || !sub.endpoint || !sub.keys) return false;
-  ensureFile();
 
-  const current = await getPushSubscriptions();
-  const filtered = current.filter(s => s.endpoint !== sub.endpoint);
-  filtered.push({
+  // 1. Try Database first
+  try {
+    const savedInDb = await savePushSubscriptionDb(sub);
+    if (savedInDb) {
+      console.log('Push subscription saved to database');
+    }
+  } catch (err) {
+    console.error('Error saving push subscription to DB:', err);
+  }
+
+  // 2. Also keep in local runtime storage (/tmp on serverless) and in-memory
+  ensureFile();
+  const current = inMemorySubscriptions.filter(s => s.endpoint !== sub.endpoint);
+  current.push({
     id: `sub-${Date.now()}`,
     endpoint: sub.endpoint,
     keys: {
@@ -63,25 +103,32 @@ export async function savePushSubscription(sub: any): Promise<boolean> {
     },
     created_at: new Date().toISOString()
   });
+  inMemorySubscriptions = current;
 
   try {
-    fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(filtered, null, 2));
-    return true;
-  } catch {
-    return false;
+    fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(current, null, 2));
+  } catch (err) {
+    console.error('File write error for subscriptions:', err);
   }
+
+  return true;
 }
 
 export async function removePushSubscription(endpoint: string): Promise<boolean> {
-  ensureFile();
-  const current = await getPushSubscriptions();
-  const filtered = current.filter(s => s.endpoint !== endpoint);
+  // 1. Database removal
   try {
-    fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(filtered, null, 2));
-    return true;
-  } catch {
-    return false;
+    await deletePushSubscriptionDb(endpoint);
+  } catch (err) {
+    console.error('Error deleting push sub from DB:', err);
   }
+
+  // 2. Local file and memory removal
+  ensureFile();
+  inMemorySubscriptions = inMemorySubscriptions.filter(s => s.endpoint !== endpoint);
+  try {
+    fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(inMemorySubscriptions, null, 2));
+  } catch {}
+  return true;
 }
 
 export async function sendDailySummaryPush(customTitle?: string, customBody?: string) {

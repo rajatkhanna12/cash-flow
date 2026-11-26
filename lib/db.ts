@@ -13,7 +13,10 @@ import {
   mssqlSaveBudgets,
   mssqlGetMyAccounts,
   mssqlAddMyAccount,
-  mssqlDeleteMyAccount
+  mssqlDeleteMyAccount,
+  mssqlGetPushSubscriptions,
+  mssqlSavePushSubscription,
+  mssqlDeletePushSubscription
 } from './mssql';
 
 export const DEFAULT_BUDGETS: CategoryBudget[] = [
@@ -27,27 +30,94 @@ export const DEFAULT_BUDGETS: CategoryBudget[] = [
   { category: 'Other Expenses', monthly_limit: 5000 },
 ];
 
+export const INITIAL_TRANSACTIONS: Transaction[] = [
+  {
+    id: 'tx-incoming-client-26nov',
+    amount: 2000,
+    type: 'inflow',
+    category: 'Salary & Income',
+    merchant: 'Incoming Payment / Client',
+    account: 'A/C XX9754',
+    reference: 'UPI/NEFT',
+    raw_sms: 'Your A/C XX9754 is credited with Rs 2,000.00 on 26-Nov-26.',
+    sender: 'Bank/UPI',
+    notes: 'Salary & Income',
+    date: '2026-11-26T08:18:00.000Z',
+    created_at: '2026-11-26T08:18:00.000Z'
+  },
+  {
+    id: 'tx-1795681245915-ipsc',
+    amount: 1275,
+    type: 'outflow',
+    category: 'Other Expenses',
+    merchant: 'Ankit Gupta',
+    account: 'A/C XX053',
+    reference: '111293797659',
+    raw_sms: 'ICICI Bank Acct XX053 debited for Rs 1275.00 on 26-Nov-26; ANKIT GUPTA credited. UPI:111293797659.',
+    sender: 'Bank/UPI',
+    notes: 'Payment to Ankit Gupta',
+    date: '2026-11-26T07:49:00.000Z',
+    created_at: '2026-11-26T07:49:00.000Z'
+  },
+  {
+    id: 'tx-hdfc-7886-26nov',
+    amount: 1009,
+    type: 'outflow',
+    category: 'Other Expenses',
+    merchant: '*7886@hdfcb',
+    account: 'Bank Account',
+    reference: 'UPI-7886',
+    raw_sms: 'Debited Rs 1009.00 to *7886@hdfcb on 26-Nov-26 12:31 PM.',
+    sender: 'Bank/UPI',
+    notes: 'Motherhood hcg injection',
+    date: '2026-11-26T07:01:00.000Z',
+    created_at: '2026-11-26T07:01:00.000Z'
+  },
+  {
+    id: 'tx-hdfc-7885-26nov',
+    amount: 1185,
+    type: 'outflow',
+    category: 'Other Expenses',
+    merchant: '*7885@hdfcb',
+    account: 'Bank Account',
+    reference: 'UPI-7885',
+    raw_sms: 'Debited Rs 1185.00 to *7885@hdfcb on 26-Nov-26 12:14 PM.',
+    sender: 'Bank/UPI',
+    notes: 'Medical/Clinic',
+    date: '2026-11-26T06:44:00.000Z',
+    created_at: '2026-11-26T06:44:00.000Z'
+  }
+];
+
 export const DEFAULT_MY_ACCOUNTS: MyAccount[] = [];
 
-// Fallback in-memory state
-let inMemoryTransactions: Transaction[] = [];
+// Fallback in-memory state initialized with real transactions
+let inMemoryTransactions: Transaction[] = [...INITIAL_TRANSACTIONS];
 let inMemoryBudgets: CategoryBudget[] = [...DEFAULT_BUDGETS];
 let inMemoryMyAccounts: MyAccount[] = [...DEFAULT_MY_ACCOUNTS];
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DATA_FILE = path.join(DATA_DIR, 'cashflow.json');
+const IS_SERVERLESS = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+const RUNTIME_DATA_DIR = IS_SERVERLESS ? '/tmp' : path.join(process.cwd(), 'data');
+const DATA_FILE = path.join(RUNTIME_DATA_DIR, 'cashflow.json');
+const BUNDLED_DATA_FILE = path.join(process.cwd(), 'data', 'cashflow.json');
 
 function ensureDataFile() {
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(RUNTIME_DATA_DIR)) {
+      fs.mkdirSync(RUNTIME_DATA_DIR, { recursive: true });
     }
     if (!fs.existsSync(DATA_FILE)) {
+      if (fs.existsSync(BUNDLED_DATA_FILE)) {
+        try {
+          fs.copyFileSync(BUNDLED_DATA_FILE, DATA_FILE);
+          return;
+        } catch {}
+      }
       fs.writeFileSync(
         DATA_FILE,
         JSON.stringify(
           {
-            transactions: [],
+            transactions: INITIAL_TRANSACTIONS,
             budgets: DEFAULT_BUDGETS,
             myAccounts: []
           },
@@ -62,12 +132,19 @@ function ensureDataFile() {
 function loadFromFile() {
   try {
     ensureDataFile();
-    if (fs.existsSync(DATA_FILE)) {
-      const content = fs.readFileSync(DATA_FILE, 'utf-8');
+    const sourceFile = fs.existsSync(DATA_FILE) ? DATA_FILE : (fs.existsSync(BUNDLED_DATA_FILE) ? BUNDLED_DATA_FILE : null);
+    if (sourceFile) {
+      const content = fs.readFileSync(sourceFile, 'utf-8');
       const data = JSON.parse(content);
-      if (Array.isArray(data.transactions)) inMemoryTransactions = data.transactions;
-      if (Array.isArray(data.budgets)) inMemoryBudgets = data.budgets;
-      if (Array.isArray(data.myAccounts)) inMemoryMyAccounts = data.myAccounts;
+      if (Array.isArray(data.transactions) && data.transactions.length > 0) {
+        inMemoryTransactions = data.transactions;
+      }
+      if (Array.isArray(data.budgets) && data.budgets.length > 0) {
+        inMemoryBudgets = data.budgets;
+      }
+      if (Array.isArray(data.myAccounts)) {
+        inMemoryMyAccounts = data.myAccounts;
+      }
     }
   } catch {}
 }
@@ -140,6 +217,16 @@ async function ensureDbInitialized() {
       CREATE TABLE IF NOT EXISTS budgets (
         category TEXT PRIMARY KEY,
         monthly_limit NUMERIC NOT NULL
+      );
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id TEXT PRIMARY KEY,
+        endpoint TEXT UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `;
 
@@ -709,4 +796,98 @@ export async function getCashFlowStats(
     categoryBudgets: categoryBudgetsMap,
     alerts
   };
+}
+
+export interface DbPushSubscription {
+  id: string;
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+  created_at?: string;
+}
+
+export async function savePushSubscriptionDb(sub: any): Promise<boolean> {
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      const id = `sub-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      await sql`
+        INSERT INTO push_subscriptions (id, endpoint, p256dh, auth)
+        VALUES (${id}, ${sub.endpoint}, ${sub.keys.p256dh}, ${sub.keys.auth})
+        ON CONFLICT (endpoint) DO UPDATE SET p256dh = ${sub.keys.p256dh}, auth = ${sub.keys.auth};
+      `;
+      return true;
+    } catch (err) {
+      console.error('Error saving push subscription to Postgres:', err);
+    }
+  }
+
+  if (isMssqlConfigured()) {
+    try {
+      await mssqlSavePushSubscription(sub);
+      return true;
+    } catch (err) {
+      console.error('Error saving push subscription to MSSQL:', err);
+    }
+  }
+
+  return false;
+}
+
+export async function getPushSubscriptionsDb(): Promise<DbPushSubscription[] | null> {
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      const rows = await sql`SELECT id, endpoint, p256dh, auth, created_at FROM push_subscriptions;`;
+      return rows.map((r: any) => ({
+        id: r.id,
+        endpoint: r.endpoint,
+        keys: {
+          p256dh: r.p256dh,
+          auth: r.auth
+        },
+        created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined
+      }));
+    } catch (err) {
+      console.error('Error reading push subscriptions from Postgres:', err);
+    }
+  }
+
+  if (isMssqlConfigured()) {
+    try {
+      return await mssqlGetPushSubscriptions();
+    } catch (err) {
+      console.error('Error reading push subscriptions from MSSQL:', err);
+    }
+  }
+
+  return null;
+}
+
+export async function deletePushSubscriptionDb(endpoint: string): Promise<boolean> {
+  const sql = getSql();
+  if (sql) {
+    try {
+      await ensureDbInitialized();
+      await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint};`;
+      return true;
+    } catch (err) {
+      console.error('Error deleting push subscription from Postgres:', err);
+    }
+  }
+
+  if (isMssqlConfigured()) {
+    try {
+      await mssqlDeletePushSubscription(endpoint);
+      return true;
+    } catch (err) {
+      console.error('Error deleting push subscription from MSSQL:', err);
+    }
+  }
+
+  return false;
 }

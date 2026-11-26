@@ -1,29 +1,60 @@
 {
   "transactions": [
     {
-      "amount": 10,
-      "type": "outflow",
-      "category": "Other Expenses",
-      "merchant": "Testmerchant",
-      "account": "Card 3587",
-      "reference": "9999999999",
-      "raw_sms": "Txn Rs.10.00 On HDFC Bank Card 3587 At TestMerchant by UPI 9999999999",
+      "id": "tx-incoming-client-26nov",
+      "amount": 2000,
+      "type": "inflow",
+      "category": "Salary & Income",
+      "merchant": "Incoming Payment / Client",
+      "account": "A/C XX9754",
+      "reference": "UPI/NEFT",
+      "raw_sms": "Your A/C XX9754 is credited with Rs 2,000.00 on 26-Nov-26.",
       "sender": "Bank/UPI",
-      "date": "2026-11-26T08:38:23.285Z",
-      "id": "tx-1795682303288-gnwm",
-      "created_at": "2026-11-26T08:38:23.288Z"
+      "notes": "Salary & Income",
+      "date": "2026-11-26T08:18:00.000Z",
+      "created_at": "2026-11-26T08:18:00.000Z"
     },
     {
+      "id": "tx-1795681245915-ipsc",
       "amount": 1275,
       "type": "outflow",
       "category": "Other Expenses",
       "merchant": "Ankit Gupta",
       "account": "A/C XX053",
+      "reference": "111293797659",
       "raw_sms": "ICICI Bank Acct XX053 debited for Rs 1275.00 on 26-Nov-26; ANKIT GUPTA credited. UPI:111293797659.",
       "sender": "Bank/UPI",
-      "date": "2026-11-26T08:20:45.911Z",
-      "id": "tx-1795681245915-ipsc",
-      "created_at": "2026-11-26T08:20:45.915Z"
+      "notes": "Payment to Ankit Gupta",
+      "date": "2026-11-26T07:49:00.000Z",
+      "created_at": "2026-11-26T07:49:00.000Z"
+    },
+    {
+      "id": "tx-hdfc-7886-26nov",
+      "amount": 1009,
+      "type": "outflow",
+      "category": "Other Expenses",
+      "merchant": "*7886@hdfcb",
+      "account": "Bank Account",
+      "reference": "UPI-7886",
+      "raw_sms": "Debited Rs 1009.00 to *7886@hdfcb on 26-Nov-26 12:31 PM.",
+      "sender": "Bank/UPI",
+      "notes": "Motherhood hcg injection",
+      "date": "2026-11-26T07:01:00.000Z",
+      "created_at": "2026-11-26T07:01:00.000Z"
+    },
+    {
+      "id": "tx-hdfc-7885-26nov",
+      "amount": 1185,
+      "type": "outflow",
+      "category": "Other Expenses",
+      "merchant": "*7885@hdfcb",
+      "account": "Bank Account",
+      "reference": "UPI-7885",
+      "raw_sms": "Debited Rs 1185.00 to *7885@hdfcb on 26-Nov-26 12:14 PM.",
+      "sender": "Bank/UPI",
+      "notes": "Medical/Clinic",
+      "date": "2026-11-26T06:44:00.000Z",
+      "created_at": "2026-11-26T06:44:00.000Z"
     }
   ],
   "budgets": [
