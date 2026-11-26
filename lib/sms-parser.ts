@@ -44,9 +44,9 @@ const CATEGORY_RULES: Record<string, string[]> = {
   ]
 };
 
-const SELF_TRANSFER_KEYWORDS = [
+const EXPLICIT_SELF_TRANSFER_PHRASES = [
   'self transfer', 'transfer to own', 'trf to own', 'own a/c', 'to own account',
-  'within bank', 'linked a/c', 'internal transfer', 'tpt to', 'to my account'
+  'within bank', 'linked a/c', 'internal transfer', 'to my account'
 ];
 
 export function parseBankSMS(
@@ -61,38 +61,19 @@ export function parseBankSMS(
   const text = rawText.trim();
   const lower = text.toLowerCase();
 
-  // 1. Detect if it's a Self-Transfer
-  let isSelfTransfer = false;
-  for (const kw of SELF_TRANSFER_KEYWORDS) {
-    if (lower.includes(kw)) {
-      isSelfTransfer = true;
-      break;
-    }
-  }
-
-  // Check if any of user's own accounts/UPI IDs are present in the SMS as recipient
-  if (!isSelfTransfer && myAccounts && myAccounts.length > 0) {
-    for (const acc of myAccounts) {
-      const cleanAcc = acc.trim().toLowerCase();
-      if (cleanAcc && lower.includes(cleanAcc)) {
-        isSelfTransfer = true;
-        break;
-      }
-    }
-  }
-
-  // 2. Detect Transaction Type (Inflow vs Outflow vs Transfer)
-  let type: TransactionType = 'outflow';
+  // 1. Detect if it's a CREDIT (Money Coming In) vs DEBIT (Money Going Out)
   let isCredit = false;
   let isDebit = false;
 
   const creditMatches = [
-    'credited', 'received', 'deposited', 'added to', 'refund of', 'cashback of',
-    'salary credited', 'cr to', 'transfer from', 'received rs', 'received inr'
+    'credited', 'received', 'deposited', 'added to your', 'refund of', 'cashback of',
+    'salary credited', 'cr to', 'transfer from', 'received rs', 'received inr',
+    'has been credited', 'account credited'
   ];
   const debitMatches = [
     'debited', 'spent', 'paid', 'sent rs', 'sent inr', 'transferred to',
-    'purchase of', 'withdrawn', 'dr from', 'deducted', 'payment of', 'charged'
+    'purchase of', 'withdrawn', 'dr from', 'deducted', 'payment of', 'charged',
+    'has been debited', 'account debited'
   ];
 
   for (const kw of creditMatches) {
@@ -109,16 +90,55 @@ export function parseBankSMS(
     }
   }
 
+  // 2. SMART SELF-TRANSFER DETECTION:
+  // 🛡️ CRITICAL RULE: Client payments (CREDIT) are ALWAYS Income/Inflow!
+  // Self-transfer is ONLY triggered when:
+  // a) Explicit phrase: "self transfer", "transfer to own a/c"
+  // b) OR your account is being DEBITED to another of your own accounts (e.g. "debited ... transfer to <myOtherAccount>")
+  let isSelfTransfer = false;
+
+  for (const phrase of EXPLICIT_SELF_TRANSFER_PHRASES) {
+    if (lower.includes(phrase)) {
+      isSelfTransfer = true;
+      break;
+    }
+  }
+
+  // Check if it's a DEBIT transfer directed TO one of user's other accounts
+  if (!isSelfTransfer && isDebit && myAccounts && myAccounts.length > 0) {
+    for (const acc of myAccounts) {
+      const cleanAcc = acc.trim().toLowerCase();
+      if (!cleanAcc) continue;
+
+      // Check if SMS says: "to <myAccount>", "transfer to <myAccount>", "towards <myAccount>", "vpa <myAccount>"
+      const destinationPatterns = [
+        new RegExp(`(?:to|towards|vpa|into)\\s+[^.]*?${escapeRegex(cleanAcc)}`, 'i'),
+        new RegExp(`transfer(?:red)?\\s+to\\s+[^.]*?${escapeRegex(cleanAcc)}`, 'i')
+      ];
+
+      for (const pattern of destinationPatterns) {
+        if (pattern.test(lower)) {
+          isSelfTransfer = true;
+          break;
+        }
+      }
+      if (isSelfTransfer) break;
+    }
+  }
+
+  // 3. Finalize Transaction Type
+  let type: TransactionType = 'outflow';
+
   if (isSelfTransfer) {
     type = 'transfer';
   } else if (isCredit && !isDebit) {
+    // Client payments or incoming transfers are 100% INFLOW!
     type = 'inflow';
   } else if (isDebit && !isCredit) {
     type = 'outflow';
   } else if (isCredit && isDebit) {
-    if (lower.includes('debited from your') || lower.includes('debited by') || lower.includes('your a/c is debited')) {
-      type = 'outflow';
-    } else if (lower.includes('credited to your') || lower.includes('your a/c is credited')) {
+    // Disambiguate context
+    if (lower.includes('credited to') || lower.includes('received from') || lower.includes('credited by')) {
       type = 'inflow';
     } else {
       type = 'outflow';
@@ -127,7 +147,7 @@ export function parseBankSMS(
     type = lower.includes('credited') || lower.includes('cr') ? 'inflow' : 'outflow';
   }
 
-  // 3. Extract Amount
+  // 4. Extract Amount
   const amountRegex = /(?:rs\.?|inr|₹)\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/i;
   const reverseAmountRegex = /([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)\s*(?:rs\.?|inr|₹)/i;
 
@@ -159,17 +179,21 @@ export function parseBankSMS(
     };
   }
 
-  // 4. Extract Merchant / Beneficiary / VPA
-  let merchant = isSelfTransfer ? 'Self Account Transfer' : 'Direct Payment';
+  // 5. Extract Merchant / Sender / Beneficiary
+  let merchant = isSelfTransfer
+    ? 'Self Account Transfer'
+    : type === 'inflow'
+    ? 'Incoming Payment / Client'
+    : 'Direct Payment';
   
   if (!isSelfTransfer) {
     const merchantPatterns = [
+      /(?:from|by)\s+(?:vpa\s+)?([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\s+dated|\.|\n|$)/i,
       /(?:to|at|towards)\s+(?:vpa\s+)?([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\s+upi|\s+dated|\s+bal|\s+not you|\.|\n|$)/i,
       /info[:\s]+([A-Za-z0-9._@\-* ]+?)(?:\s+avbl|\s+bal|\.|\n|$)/i,
       /beneficiary[:\s]+([A-Za-z0-9._@\- ]+?)(?:\s+on|\.|\n|$)/i,
       /transfer\s+to\s+([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\.|\n|$)/i,
-      /paid\s+to\s+([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+via|\.|\n|$)/i,
-      /from\s+(?:vpa\s+)?([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\.|\n|$)/i
+      /paid\s+to\s+([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+via|\.|\n|$)/i
     ];
 
     for (const regex of merchantPatterns) {
@@ -194,7 +218,7 @@ export function parseBankSMS(
     }
   }
 
-  // 5. Account number
+  // 6. Account number
   let account = 'Bank Account';
   const accountRegex = /(?:a\/c|acct|account)\s*(?:no\.?)?\s*([xX*]*\d{3,5})/i;
   const accMatch = text.match(accountRegex);
@@ -202,7 +226,7 @@ export function parseBankSMS(
     account = `A/C ${accMatch[1]}`;
   }
 
-  // 6. Reference number
+  // 7. Reference number
   let reference: string | undefined = undefined;
   const refRegex = /(?:upi\s+ref(?:\s+no)?|ref(?:\s+no)?|rrn|utr|txn\s+id)[:\s]+([0-9a-zA-Z]{6,16})/i;
   const refMatch = text.match(refRegex);
@@ -210,7 +234,7 @@ export function parseBankSMS(
     reference = refMatch[1].trim();
   }
 
-  // 7. Auto-Categorize
+  // 8. Auto-Categorize
   let category = isSelfTransfer
     ? 'Self Transfer'
     : type === 'inflow'
@@ -243,6 +267,10 @@ export function parseBankSMS(
     date: defaultDate.toISOString(),
     confidence: isSelfTransfer ? 0.99 : reference ? 0.95 : 0.85
   };
+}
+
+function escapeRegex(str: string) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function capitalizeWords(str: string): string {
