@@ -36,7 +36,10 @@ import {
   LogOut,
   Eye,
   EyeOff,
-  User
+  User,
+  Bell,
+  BellRing,
+  BellOff
 } from 'lucide-react';
 import { Transaction, CashFlowStats, CategoryBudget, ReportingPeriod, MyAccount } from '@/lib/types';
 
@@ -131,6 +134,11 @@ export default function CashFlowApp() {
   const [authLoading, setAuthLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // 🔔 Web Push Notification State
+  const [pushStatus, setPushStatus] = useState<'default' | 'granted' | 'denied' | 'unsupported'>('default');
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushMessage, setPushMessage] = useState('');
+
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
@@ -223,6 +231,99 @@ export default function CashFlowApp() {
       setIsAuthed(false);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
+      if (Notification.permission === 'granted') {
+        setPushStatus('granted');
+      } else if (Notification.permission === 'denied') {
+        setPushStatus('denied');
+      } else {
+        setPushStatus('default');
+      }
+    } else {
+      setPushStatus('unsupported');
+    }
+  }, []);
+
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const handleSubscribePush = async () => {
+    try {
+      setPushLoading(true);
+      setPushMessage('');
+
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        alert('Aapke browser par Web Push support nahi hai. iPhone par Safari mein pehle "Add to Home Screen" karein!');
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        setPushStatus('denied');
+        alert('Notification permission allow nahi ki gayi. Browser settings mein jaakar notification on karein.');
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      const keyRes = await fetch('/api/push');
+      const keyData = await keyRes.json();
+      const convertedKey = urlBase64ToUint8Array(keyData.publicKey);
+
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedKey
+      });
+
+      await fetch('/api/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subscription)
+      });
+
+      setPushStatus('granted');
+      setPushMessage('10 PM Night Alert Active ✅');
+      setTimeout(() => setPushMessage(''), 4000);
+    } catch (err: any) {
+      console.error('Error subscribing to push:', err);
+      alert('Notification enable error: ' + err.message);
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    try {
+      setPushLoading(true);
+      const res = await fetch('/api/push', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPushMessage('Push delivered! 🔔');
+        setTimeout(() => setPushMessage(''), 3000);
+      } else {
+        alert('Push error: ' + (data.error || 'Failed'));
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setPushLoading(false);
     }
   };
 
@@ -607,10 +708,33 @@ export default function CashFlowApp() {
           </nav>
 
           {/* Actions */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5 sm:space-x-2">
+            {/* 🔔 10 PM Push Notification Button */}
+            {pushStatus === 'granted' ? (
+              <button
+                onClick={handleSendTestPush}
+                disabled={pushLoading}
+                title="10 PM Alert Active! Click to test push notification now."
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+              >
+                <BellRing className="h-3.5 w-3.5 text-emerald-600" />
+                <span className="hidden sm:inline">10 PM Alert Active</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleSubscribePush}
+                disabled={pushLoading}
+                title="Enable 10 PM Nightly Expense Push Notification"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+              >
+                <Bell className="h-3.5 w-3.5 text-slate-500" />
+                <span className="hidden sm:inline">{pushLoading ? 'Connecting...' : '10 PM Alert'}</span>
+              </button>
+            )}
+
             <button
               onClick={() => setShowAddModal(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition"
+              className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
               <span>Naya Add</span>
@@ -618,14 +742,14 @@ export default function CashFlowApp() {
             <button
               onClick={() => fetchData(selectedPeriod, customFromDate, customToDate)}
               title="Refresh"
-              className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 active:scale-95 transition"
+              className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 active:scale-95 transition cursor-pointer"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-emerald-600' : ''}`} />
             </button>
             <button
               onClick={handleLogout}
               title="Lock / Logout"
-              className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50 active:scale-95 transition flex items-center gap-1"
+              className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50 active:scale-95 transition flex items-center gap-1 cursor-pointer"
             >
               <Lock className="h-4 w-4" />
               <span className="hidden sm:inline text-xs font-semibold">Lock</span>
@@ -728,6 +852,12 @@ export default function CashFlowApp() {
 
       {/* 📱 / 💻 MAIN CONTENT */}
       <main className="max-w-lg lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 w-full space-y-6 flex-1">
+        {pushMessage && (
+          <div className="fixed bottom-20 md:bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-xl text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-3 border border-white/10">
+            <BellRing className="h-4 w-4 text-emerald-400 animate-pulse" />
+            <span>{pushMessage}</span>
+          </div>
+        )}
         {/* OVERSPENDING ALERT */}
         {selectedPeriod === 'month' && stats && stats.alerts.length > 0 && (
           <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">

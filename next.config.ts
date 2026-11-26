@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  serverExternalPackages: ['mssql', 'tedious'],
+  serverExternalPackages: ['mssql', 'tedious', 'web-push'],
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

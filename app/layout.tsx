@@ -22,6 +22,12 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "CashFlow Guard",
   description: "Automated Cash Flow & Expense Tracker for iPhone",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "CashFlow"
+  }
 };
 
 export default function RootLayout({
