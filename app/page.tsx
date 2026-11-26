@@ -27,7 +27,9 @@ import {
   ArrowLeftRight,
   CreditCard,
   Building2,
-  Inbox
+  Inbox,
+  Pencil,
+  FileText
 } from 'lucide-react';
 import { Transaction, CashFlowStats, CategoryBudget, ReportingPeriod, MyAccount } from '@/lib/types';
 
@@ -102,6 +104,17 @@ export default function CashFlowApp() {
     category: 'Food & Dining',
     notes: ''
   });
+
+  // Edit Modal state (rename merchant, add remarks)
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [editForm, setEditForm] = useState({
+    merchant: '',
+    category: 'Food & Dining',
+    amount: '',
+    notes: '',
+    type: 'outflow' as 'inflow' | 'outflow' | 'transfer'
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -205,6 +218,49 @@ export default function CashFlowApp() {
       await fetchData(selectedPeriod, customFromDate, customToDate);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleOpenEdit = (tx: Transaction) => {
+    setEditingTx(tx);
+    setEditForm({
+      merchant: tx.merchant,
+      category: tx.category,
+      amount: tx.amount.toString(),
+      notes: tx.notes || '',
+      type: tx.type
+    });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTx) return;
+
+    try {
+      setSavingEdit(true);
+      const res = await fetch('/api/transactions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingTx.id,
+          updates: {
+            merchant: editForm.merchant.trim(),
+            category: editForm.category,
+            amount: parseFloat(editForm.amount) || editingTx.amount,
+            notes: editForm.notes.trim(),
+            type: editForm.type
+          }
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEditingTx(null);
+        await fetchData(selectedPeriod, customFromDate, customToDate);
+      }
+    } catch (err) {
+      console.error('Error saving transaction updates:', err);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -810,16 +866,31 @@ export default function CashFlowApp() {
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="text-xs sm:text-sm font-bold text-slate-900 truncate">
-                                {tx.merchant}
-                              </p>
+                              <button
+                                onClick={() => handleOpenEdit(tx)}
+                                className="text-left group flex items-center gap-1.5 hover:text-emerald-700 transition"
+                                title="Click to edit Name & Remark"
+                              >
+                                <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-700 truncate">
+                                  {tx.merchant}
+                                </span>
+                                <Pencil className="h-3 w-3 text-slate-300 opacity-60 group-hover:opacity-100 group-hover:text-emerald-600 transition flex-shrink-0" />
+                              </button>
                               {tx.type === 'transfer' && (
                                 <span className="text-[10px] bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full">
                                   Self Transfer
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 flex-wrap">
+
+                            {tx.notes && (
+                              <div className="flex items-center gap-1 text-[11px] text-amber-800 font-medium bg-amber-50 border border-amber-200/60 rounded px-1.5 py-0.5 mt-0.5 w-fit">
+                                <FileText className="h-3 w-3 text-amber-600 flex-shrink-0" />
+                                <span className="truncate max-w-[200px] sm:max-w-xs">{tx.notes}</span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 flex-wrap mt-0.5">
                               <span className="text-slate-700 font-medium">{tx.category}</span>
                               {tx.account && <span>• {tx.account}</span>}
                               <span>
@@ -829,7 +900,7 @@ export default function CashFlowApp() {
                           </div>
                         </div>
 
-                        <div className="flex items-center space-x-2 flex-shrink-0">
+                        <div className="flex items-center space-x-1.5 sm:space-x-2 flex-shrink-0">
                           <span
                             className={`text-xs sm:text-sm font-bold tracking-tight ${
                               tx.type === 'transfer'
@@ -843,9 +914,17 @@ export default function CashFlowApp() {
                           </span>
 
                           <button
+                            onClick={() => handleOpenEdit(tx)}
+                            title="Edit Name, Remark & Category"
+                            className="p-1.5 rounded-lg text-xs border border-slate-200 bg-slate-50 text-slate-500 hover:text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50 active:scale-95 transition"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+
+                          <button
                             onClick={() => handleToggleTransfer(tx)}
                             title={tx.type === 'transfer' ? 'Convert to Expense' : 'Mark as Self-Transfer (Exclude from Expense)'}
-                            className={`p-1.5 rounded-lg text-xs border transition ${
+                            className={`p-1.5 rounded-lg text-xs border transition active:scale-95 ${
                               tx.type === 'transfer'
                                 ? 'bg-sky-50 text-sky-700 border-sky-200'
                                 : 'bg-slate-50 text-slate-400 hover:text-slate-700 border-slate-200'
@@ -856,7 +935,7 @@ export default function CashFlowApp() {
 
                           <button
                             onClick={() => handleDeleteTx(tx.id)}
-                            className="text-slate-300 hover:text-rose-600 p-1.5"
+                            className="text-slate-300 hover:text-rose-600 p-1.5 active:scale-95"
                             title="Delete"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1367,6 +1446,158 @@ export default function CashFlowApp() {
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-xs transition"
                 >
                   Save Entry
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ✏️ EDIT TRANSACTION MODAL (Rename Merchant, Add Remarks, Recategorize) */}
+      {editingTx && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white border-t sm:border border-slate-200 rounded-t-3xl sm:rounded-2xl max-w-md w-full p-5 space-y-3.5 shadow-2xl animate-in slide-in-from-bottom-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                  <Pencil className="h-4 w-4 text-emerald-600" />
+                  Transaction Details Update
+                </h3>
+                <p className="text-[11px] text-slate-500">Name aur remark add karein taaki month-end reporting clear rahe.</p>
+              </div>
+              <button
+                onClick={() => setEditingTx(null)}
+                className="text-slate-400 hover:text-slate-600 text-sm p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-500 block mb-1">Type</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditForm({ ...editForm, type: 'outflow' })}
+                    className={`py-2 rounded-xl text-xs font-bold border transition text-center ${
+                      editForm.type === 'outflow'
+                        ? 'bg-rose-50 border-rose-300 text-rose-800'
+                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    Kharch (Outflow)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm({ ...editForm, type: 'inflow' })}
+                    className={`py-2 rounded-xl text-xs font-bold border transition text-center ${
+                      editForm.type === 'inflow'
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    Aaya (Income)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm({ ...editForm, type: 'transfer', category: 'Self Transfer' })}
+                    className={`py-2 rounded-xl text-xs font-bold border transition text-center ${
+                      editForm.type === 'transfer'
+                        ? 'bg-sky-50 border-sky-300 text-sky-800'
+                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    Self Transfer
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-500 block mb-1">
+                  Kisko bheje / Kis se aaye (Name)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ankit Gupta, Ramesh Client, Swiggy, Office Wifi"
+                  value={editForm.merchant}
+                  onChange={e => setEditForm({ ...editForm, merchant: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-500 block mb-1">
+                  Remark / Notes (Kyun diye / Kis project ke hain)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Website advance 50%, Team lunch, Diwali bonus, Bike fuel"
+                  value={editForm.notes}
+                  onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 block mb-1">Amount (₹)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={editForm.amount}
+                    onChange={e => setEditForm({ ...editForm, amount: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 block mb-1">Category</label>
+                  <select
+                    value={editForm.category}
+                    onChange={e => setEditForm({ ...editForm, category: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="Food & Dining">Food & Dining</option>
+                    <option value="Groceries">Groceries</option>
+                    <option value="Travel & Fuel">Travel & Fuel</option>
+                    <option value="Shopping">Shopping</option>
+                    <option value="Bills & Utilities">Bills & Utilities</option>
+                    <option value="Entertainment & Subs">Entertainment & Subs</option>
+                    <option value="Health & Medical">Health & Medical</option>
+                    <option value="Investments & Savings">Investments & Savings</option>
+                    <option value="Salary & Income">Salary & Income</option>
+                    <option value="Self Transfer">Self Transfer</option>
+                    <option value="Other Expenses">Other Expenses</option>
+                  </select>
+                </div>
+              </div>
+
+              {editingTx.raw_sms && (
+                <div className="bg-slate-50 p-2 rounded-lg border border-slate-200/80">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Original SMS</span>
+                  <p className="text-[10px] text-slate-500 font-mono leading-tight whitespace-pre-wrap line-clamp-2">
+                    {editingTx.raw_sms}
+                  </p>
+                </div>
+              )}
+
+              <div className="pt-2 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingTx(null)}
+                  className="px-3.5 py-2 rounded-xl text-xs text-slate-500 hover:bg-slate-100 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5"
+                >
+                  {savingEdit ? 'Saving...' : 'Update Karein'}
                 </button>
               </div>
             </form>

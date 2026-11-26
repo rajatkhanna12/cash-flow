@@ -264,6 +264,10 @@ export async function mssqlUpdateTransaction(id: string, updates: Partial<Transa
     req.input('amount', sql.Decimal(18, 2), updates.amount);
     setClauses.push('amount = @amount');
   }
+  if (updates.notes !== undefined) {
+    req.input('notes', sql.NVarChar(sql.MAX), updates.notes);
+    setClauses.push('notes = @notes');
+  }
 
   if (setClauses.length > 0) {
     await req.query(`UPDATE transactions SET ${setClauses.join(', ')} WHERE id = @id;`);

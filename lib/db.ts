@@ -321,10 +321,11 @@ export async function updateTransaction(id: string, updates: Partial<Transaction
       const updatedCategory = updates.category !== undefined ? updates.category : current.category;
       const updatedMerchant = updates.merchant !== undefined ? updates.merchant : current.merchant;
       const updatedAmount = updates.amount !== undefined ? updates.amount : current.amount;
+      const updatedNotes = updates.notes !== undefined ? updates.notes : current.notes;
 
       await sql`
         UPDATE transactions
-        SET type = ${updatedType}, category = ${updatedCategory}, merchant = ${updatedMerchant}, amount = ${updatedAmount}
+        SET type = ${updatedType}, category = ${updatedCategory}, merchant = ${updatedMerchant}, amount = ${updatedAmount}, notes = ${updatedNotes}
         WHERE id = ${id};
       `;
 
@@ -337,6 +338,7 @@ export async function updateTransaction(id: string, updates: Partial<Transaction
         merchant: updatedMerchant,
         account: current.account,
         reference: current.reference,
+        notes: updatedNotes,
         created_at: current.created_at
       };
     } catch (err) {
