@@ -5,74 +5,178 @@ let pool: sql.ConnectionPool | null = null;
 let poolPromise: Promise<sql.ConnectionPool> | null = null;
 let initialized = false;
 
+function getEnv(keys: string[]): string | undefined {
+  for (const k of keys) {
+    if (process.env[k]) return process.env[k];
+  }
+  return undefined;
+}
+
 export function isMssqlConfigured(): boolean {
-  const connStr = process.env.MSSQL_CONNECTION_STRING || process.env.DATABASE_URL;
+  const connStr = getEnv(['MSSQL_CONNECTION_STRING', 'DATABASE_URL', 'CONNECTION_STRING']);
   if (connStr && (connStr.toLowerCase().startsWith('server=') || connStr.toLowerCase().startsWith('mssql://') || connStr.toLowerCase().startsWith('sqlserver://'))) {
     return true;
   }
-  return !!(process.env.MSSQL_SERVER && process.env.MSSQL_DATABASE && process.env.MSSQL_USER);
+  const server = getEnv(['MSSQL_SERVER', 'DB_SERVER', 'DB_HOST', 'SERVER']);
+  const database = getEnv(['MSSQL_DATABASE', 'DB_NAME', 'DATABASE_NAME', 'DATABASE']);
+  const user = getEnv(['MSSQL_USER', 'DB_USER', 'DB_USERNAME', 'USER']);
+  return !!(server && database && user);
+}
+
+function parseMssqlConfig(): sql.config {
+  const connStr = getEnv(['MSSQL_CONNECTION_STRING', 'DATABASE_URL', 'CONNECTION_STRING']);
+
+  if (connStr && (connStr.toLowerCase().startsWith('server=') || connStr.toLowerCase().startsWith('mssql://') || connStr.toLowerCase().startsWith('sqlserver://'))) {
+    if (connStr.toLowerCase().startsWith('server=')) {
+      const parts = connStr.split(';').reduce((acc: Record<string, string>, part) => {
+        const [k, ...v] = part.split('=');
+        if (k && v.length) acc[k.trim().toLowerCase()] = v.join('=').trim();
+        return acc;
+      }, {});
+
+      const serverVal = parts['server'] || parts['data source'] || 'localhost';
+      const hasPort = serverVal.includes(',');
+      const [srv, prt] = serverVal.split(',');
+
+      const config: sql.config = {
+        server: srv.trim(),
+        database: parts['database'] || parts['initial catalog'] || '',
+        user: parts['user id'] || parts['uid'] || parts['user'] || '',
+        password: parts['password'] || parts['pwd'] || '',
+        options: {
+          encrypt: parts['encrypt'] === 'true' || parts['encrypt'] === 'yes',
+          trustServerCertificate: parts['trustservercertificate'] !== 'false'
+        }
+      };
+
+      if (hasPort && prt) {
+        config.port = parseInt(prt.trim(), 10);
+      }
+      return config;
+    } else {
+      const parsed = new URL(connStr.replace(/^sqlserver:\/\//, 'mssql://'));
+      const config: sql.config = {
+        server: parsed.hostname,
+        database: parsed.pathname.replace(/^\//, ''),
+        user: decodeURIComponent(parsed.username),
+        password: decodeURIComponent(parsed.password),
+        options: {
+          encrypt: parsed.searchParams.get('encrypt') === 'true',
+          trustServerCertificate: parsed.searchParams.get('trustServerCertificate') !== 'false'
+        }
+      };
+
+      if (parsed.port) {
+        config.port = parseInt(parsed.port, 10);
+      }
+      return config;
+    }
+  }
+
+  const server = (getEnv(['MSSQL_SERVER', 'DB_SERVER', 'DB_HOST', 'SERVER']) || 'localhost').trim();
+  const database = (getEnv(['MSSQL_DATABASE', 'DB_NAME', 'DATABASE_NAME', 'DATABASE']) || 'cashflow').trim();
+  const user = (getEnv(['MSSQL_USER', 'DB_USER', 'DB_USERNAME', 'USER']) || 'sa').trim();
+  const password = getEnv(['MSSQL_PASSWORD', 'DB_PASSWORD', 'DB_PASS', 'PASSWORD']) || '';
+  const portStr = getEnv(['MSSQL_PORT', 'DB_PORT', 'PORT']);
+  const encryptStr = getEnv(['MSSQL_ENCRYPT', 'DB_ENCRYPT']);
+
+  const config: sql.config = {
+    server,
+    database,
+    user,
+    password,
+    options: {
+      encrypt: encryptStr === 'true',
+      trustServerCertificate: true // Always trust for flexible setups
+    }
+  };
+
+  // Only add port if explicitly specified and server is not a named instance
+  if (portStr && !server.includes('\\')) {
+    config.port = parseInt(portStr, 10);
+  }
+
+  return config;
+}
+
+// Automatically create database if it doesn't exist, then connect and create tables
+async function ensureDatabaseAndTables(config: sql.config): Promise<sql.ConnectionPool> {
+  const targetDb = config.database;
+
+  // Step 1: Try to create Database via 'master' (if we have admin access)
+  if (targetDb && targetDb.toLowerCase() !== 'master') {
+    try {
+      const masterConfig: sql.config = {
+        ...config,
+        database: 'master'
+      };
+      const masterPool = new sql.ConnectionPool(masterConfig);
+      await masterPool.connect();
+      // Sanitize db name (alphanumeric and underscores)
+      const safeDbName = targetDb.replace(/[^a-zA-Z0-9_]/g, '');
+      if (safeDbName) {
+        await masterPool.request().query(`
+          IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '${safeDbName}')
+          BEGIN
+            CREATE DATABASE [${safeDbName}];
+          END
+        `);
+      }
+      await masterPool.close();
+      console.log(`[MSSQL] Database "${safeDbName}" verified or created.`);
+    } catch (err: any) {
+      console.log('[MSSQL] Note: Master DB check skipped or not allowed, connecting directly to target DB:', err?.message || err);
+    }
+  }
+
+  // Step 2: Connect to target DB and ensure Tables exist
+  const targetPool = new sql.ConnectionPool(config);
+  await targetPool.connect();
+
+  await targetPool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='transactions' AND xtype='U')
+    CREATE TABLE transactions (
+      id NVARCHAR(100) PRIMARY KEY,
+      date NVARCHAR(50) NOT NULL,
+      amount DECIMAL(18,2) NOT NULL,
+      type NVARCHAR(20) NOT NULL,
+      category NVARCHAR(100) NOT NULL,
+      merchant NVARCHAR(200) NOT NULL,
+      account NVARCHAR(50) NULL,
+      reference NVARCHAR(100) NULL,
+      raw_sms NVARCHAR(MAX) NULL,
+      sender NVARCHAR(100) NULL,
+      notes NVARCHAR(MAX) NULL,
+      created_at DATETIME2 DEFAULT GETDATE()
+    );
+
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='my_accounts' AND xtype='U')
+    CREATE TABLE my_accounts (
+      id NVARCHAR(100) PRIMARY KEY,
+      name NVARCHAR(100) NOT NULL,
+      identifier NVARCHAR(100) NOT NULL,
+      created_at DATETIME2 DEFAULT GETDATE()
+    );
+
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='budgets' AND xtype='U')
+    CREATE TABLE budgets (
+      category NVARCHAR(100) PRIMARY KEY,
+      monthly_limit DECIMAL(18,2) NOT NULL
+    );
+  `);
+
+  initialized = true;
+  console.log('[MSSQL] Tables transactions, my_accounts, budgets verified / created successfully.');
+  return targetPool;
 }
 
 export async function getMssqlPool(): Promise<sql.ConnectionPool> {
   if (pool && pool.connected) return pool;
 
   if (!poolPromise) {
-    const connStr = process.env.MSSQL_CONNECTION_STRING || process.env.DATABASE_URL;
+    const config = parseMssqlConfig();
 
-    let config: sql.config;
-
-    if (connStr && (connStr.toLowerCase().startsWith('server=') || connStr.toLowerCase().startsWith('mssql://') || connStr.toLowerCase().startsWith('sqlserver://'))) {
-      if (connStr.toLowerCase().startsWith('server=')) {
-        // Parse ADO.NET connection string
-        const parts = connStr.split(';').reduce((acc: Record<string, string>, part) => {
-          const [k, ...v] = part.split('=');
-          if (k && v.length) acc[k.trim().toLowerCase()] = v.join('=').trim();
-          return acc;
-        }, {});
-
-        const serverPort = (parts['server'] || parts['data source'] || 'localhost').split(',');
-        config = {
-          server: serverPort[0],
-          port: serverPort[1] ? parseInt(serverPort[1], 10) : 1433,
-          database: parts['database'] || parts['initial catalog'] || '',
-          user: parts['user id'] || parts['uid'] || parts['user'] || '',
-          password: parts['password'] || parts['pwd'] || '',
-          options: {
-            encrypt: parts['encrypt'] === 'true' || parts['encrypt'] === 'yes',
-            trustServerCertificate: parts['trustservercertificate'] !== 'false'
-          }
-        };
-      } else {
-        // Parse URL
-        const parsed = new URL(connStr.replace(/^sqlserver:\/\//, 'mssql://'));
-        config = {
-          server: parsed.hostname,
-          port: parsed.port ? parseInt(parsed.port, 10) : 1433,
-          database: parsed.pathname.replace(/^\//, ''),
-          user: decodeURIComponent(parsed.username),
-          password: decodeURIComponent(parsed.password),
-          options: {
-            encrypt: parsed.searchParams.get('encrypt') === 'true',
-            trustServerCertificate: parsed.searchParams.get('trustServerCertificate') !== 'false'
-          }
-        };
-      }
-    } else {
-      config = {
-        server: process.env.MSSQL_SERVER || 'localhost',
-        port: process.env.MSSQL_PORT ? parseInt(process.env.MSSQL_PORT, 10) : 1433,
-        database: process.env.MSSQL_DATABASE || 'cashflow',
-        user: process.env.MSSQL_USER || 'sa',
-        password: process.env.MSSQL_PASSWORD || '',
-        options: {
-          encrypt: process.env.MSSQL_ENCRYPT === 'true',
-          trustServerCertificate: process.env.MSSQL_TRUST_CERT !== 'false'
-        }
-      };
-    }
-
-    poolPromise = new sql.ConnectionPool(config)
-      .connect()
+    poolPromise = ensureDatabaseAndTables(config)
       .then(p => {
         pool = p;
         return p;
@@ -84,52 +188,16 @@ export async function getMssqlPool(): Promise<sql.ConnectionPool> {
       });
   }
 
-  return poolPromise;
+  const p = await poolPromise;
+  if (!p) throw new Error('Could not establish MSSQL connection pool');
+  return p;
 }
 
 export async function initMssqlTables() {
-  if (initialized) return;
-  try {
-    const p = await getMssqlPool();
-    await p.request().query(`
-      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='transactions' AND xtype='U')
-      CREATE TABLE transactions (
-        id NVARCHAR(100) PRIMARY KEY,
-        date NVARCHAR(50) NOT NULL,
-        amount DECIMAL(18,2) NOT NULL,
-        type NVARCHAR(20) NOT NULL,
-        category NVARCHAR(100) NOT NULL,
-        merchant NVARCHAR(200) NOT NULL,
-        account NVARCHAR(50) NULL,
-        reference NVARCHAR(100) NULL,
-        raw_sms NVARCHAR(MAX) NULL,
-        sender NVARCHAR(100) NULL,
-        notes NVARCHAR(MAX) NULL,
-        created_at DATETIME2 DEFAULT GETDATE()
-      );
-
-      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='my_accounts' AND xtype='U')
-      CREATE TABLE my_accounts (
-        id NVARCHAR(100) PRIMARY KEY,
-        name NVARCHAR(100) NOT NULL,
-        identifier NVARCHAR(100) NOT NULL,
-        created_at DATETIME2 DEFAULT GETDATE()
-      );
-
-      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='budgets' AND xtype='U')
-      CREATE TABLE budgets (
-        category NVARCHAR(100) PRIMARY KEY,
-        monthly_limit DECIMAL(18,2) NOT NULL
-      );
-    `);
-    initialized = true;
-  } catch (err) {
-    console.error('Error creating MSSQL tables:', err);
-  }
+  await getMssqlPool();
 }
 
 export async function mssqlGetTransactions(): Promise<Transaction[]> {
-  await initMssqlTables();
   const p = await getMssqlPool();
   const res = await p.request().query(`
     SELECT id, date, amount, type, category, merchant, account, reference, raw_sms, sender, notes, created_at
@@ -154,7 +222,6 @@ export async function mssqlGetTransactions(): Promise<Transaction[]> {
 }
 
 export async function mssqlAddTransaction(tx: Transaction): Promise<void> {
-  await initMssqlTables();
   const p = await getMssqlPool();
   const req = p.request();
   req.input('id', sql.NVarChar(100), tx.id);
@@ -176,7 +243,6 @@ export async function mssqlAddTransaction(tx: Transaction): Promise<void> {
 }
 
 export async function mssqlUpdateTransaction(id: string, updates: Partial<Transaction>): Promise<void> {
-  await initMssqlTables();
   const p = await getMssqlPool();
   const req = p.request();
   req.input('id', sql.NVarChar(100), id);
@@ -205,7 +271,6 @@ export async function mssqlUpdateTransaction(id: string, updates: Partial<Transa
 }
 
 export async function mssqlDeleteTransaction(id: string): Promise<void> {
-  await initMssqlTables();
   const p = await getMssqlPool();
   const req = p.request();
   req.input('id', sql.NVarChar(100), id);
@@ -213,13 +278,11 @@ export async function mssqlDeleteTransaction(id: string): Promise<void> {
 }
 
 export async function mssqlClearAllTransactions(): Promise<void> {
-  await initMssqlTables();
   const p = await getMssqlPool();
   await p.request().query('DELETE FROM transactions;');
 }
 
 export async function mssqlGetBudgets(): Promise<CategoryBudget[]> {
-  await initMssqlTables();
   const p = await getMssqlPool();
   const res = await p.request().query('SELECT category, monthly_limit FROM budgets;');
   return res.recordset.map((r: any) => ({
@@ -229,7 +292,6 @@ export async function mssqlGetBudgets(): Promise<CategoryBudget[]> {
 }
 
 export async function mssqlSaveBudgets(budgets: CategoryBudget[]): Promise<void> {
-  await initMssqlTables();
   const p = await getMssqlPool();
   for (const b of budgets) {
     const req = p.request();
@@ -245,7 +307,6 @@ export async function mssqlSaveBudgets(budgets: CategoryBudget[]): Promise<void>
 }
 
 export async function mssqlGetMyAccounts(): Promise<MyAccount[]> {
-  await initMssqlTables();
   const p = await getMssqlPool();
   const res = await p.request().query('SELECT id, name, identifier FROM my_accounts;');
   return res.recordset.map((r: any) => ({
@@ -256,7 +317,6 @@ export async function mssqlGetMyAccounts(): Promise<MyAccount[]> {
 }
 
 export async function mssqlAddMyAccount(acc: MyAccount): Promise<void> {
-  await initMssqlTables();
   const p = await getMssqlPool();
   const req = p.request();
   req.input('id', sql.NVarChar(100), acc.id);
@@ -269,7 +329,6 @@ export async function mssqlAddMyAccount(acc: MyAccount): Promise<void> {
 }
 
 export async function mssqlDeleteMyAccount(id: string): Promise<void> {
-  await initMssqlTables();
   const p = await getMssqlPool();
   const req = p.request();
   req.input('id', sql.NVarChar(100), id);
