@@ -148,8 +148,8 @@ export function parseBankSMS(
   }
 
   // 4. Extract Amount
-  const amountRegex = /(?:rs\.?|inr|₹)\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/i;
-  const reverseAmountRegex = /([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)\s*(?:rs\.?|inr|₹)/i;
+  const amountRegex = /(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)/i;
+  const reverseAmountRegex = /([\d,]+(?:\.\d{1,2})?)\s*(?:rs\.?|inr|₹)/i;
 
   let amountStr: string | null = null;
   const match1 = text.match(amountRegex);
@@ -188,12 +188,12 @@ export function parseBankSMS(
   
   if (!isSelfTransfer) {
     const merchantPatterns = [
-      /(?:from|by)\s+(?:vpa\s+)?([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\s+dated|\.|\n|$)/i,
-      /(?:to|at|towards)\s+(?:vpa\s+)?([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\s+upi|\s+dated|\s+bal|\s+not you|\.|\n|$)/i,
-      /info[:\s]+([A-Za-z0-9._@\-* ]+?)(?:\s+avbl|\s+bal|\.|\n|$)/i,
-      /beneficiary[:\s]+([A-Za-z0-9._@\- ]+?)(?:\s+on|\.|\n|$)/i,
-      /transfer\s+to\s+([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\.|\n|$)/i,
-      /paid\s+to\s+([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+via|\.|\n|$)/i
+      /(?:to|at|towards)\s+(?:vpa\s+)?([*A-Za-z0-9._@\- ]+?)(?:\s+by|\s+on|\s+ref|\s+upi|\s+dated|\s+bal|\s+not you|\.|\n|$)/i,
+      /info[:\s]+([*A-Za-z0-9._@\- ]+?)(?:\s+avbl|\s+bal|\.|\n|$)/i,
+      /beneficiary[:\s]+([*A-Za-z0-9._@\- ]+?)(?:\s+on|\.|\n|$)/i,
+      /transfer\s+to\s+([*A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\.|\n|$)/i,
+      /paid\s+to\s+([*A-Za-z0-9._@\- ]+?)(?:\s+on|\s+via|\.|\n|$)/i,
+      /(?:from|by)\s+(?:vpa\s+)?([*A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\s+dated|\.|\n|$)/i
     ];
 
     for (const regex of merchantPatterns) {
@@ -201,13 +201,14 @@ export function parseBankSMS(
       if (m && m[1]) {
         let candidate = m[1].trim();
         candidate = candidate.replace(/[.*]+$/, '').trim();
-        if (candidate.length >= 2 && !candidate.toLowerCase().startsWith('your a/c')) {
-          if (candidate.includes('@')) {
-            const upiHandle = candidate.split('@')[0];
-            merchant = upiHandle.toUpperCase();
-          } else {
-            merchant = candidate;
-          }
+        const candidateLower = candidate.toLowerCase();
+        if (
+          candidate.length >= 2 &&
+          !candidateLower.startsWith('your a/c') &&
+          !candidateLower.startsWith('upi') &&
+          !candidateLower.startsWith('card')
+        ) {
+          merchant = candidate;
           break;
         }
       }
@@ -218,17 +219,17 @@ export function parseBankSMS(
     }
   }
 
-  // 6. Account number
+  // 6. Account / Card number
   let account = 'Bank Account';
-  const accountRegex = /(?:a\/c|acct|account)\s*(?:no\.?)?\s*([xX*]*\d{3,5})/i;
+  const accountRegex = /(?:card|a\/c|acct|account)\s*(?:no\.?)?\s*([xX*]*\d{3,5})/i;
   const accMatch = text.match(accountRegex);
   if (accMatch && accMatch[1]) {
-    account = `A/C ${accMatch[1]}`;
+    account = text.toLowerCase().includes('card') ? `Card ${accMatch[1]}` : `A/C ${accMatch[1]}`;
   }
 
   // 7. Reference number
   let reference: string | undefined = undefined;
-  const refRegex = /(?:upi\s+ref(?:\s+no)?|ref(?:\s+no)?|rrn|utr|txn\s+id)[:\s]+([0-9a-zA-Z]{6,16})/i;
+  const refRegex = /(?:by\s+upi|upi\s+ref(?:\s+no)?|ref(?:\s+no)?|rrn|utr|txn\s+id)[:\s]+([0-9a-zA-Z]{6,16})/i;
   const refMatch = text.match(refRegex);
   if (refMatch && refMatch[1]) {
     reference = refMatch[1].trim();
