@@ -164,6 +164,12 @@ export async function deleteTransaction(id: string): Promise<boolean> {
   return true;
 }
 
+export async function clearAllTransactions(): Promise<boolean> {
+  inMemoryTransactions = [];
+  saveToFile();
+  return true;
+}
+
 export async function isDuplicateTransaction(
   reference?: string,
   amount?: number,

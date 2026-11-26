@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTransactions, addTransaction, deleteTransaction, updateTransaction } from '@/lib/db';
+import { getTransactions, addTransaction, deleteTransaction, updateTransaction, clearAllTransactions } from '@/lib/db';
 import { ReportingPeriod } from '@/lib/types';
 
 export async function GET(req: NextRequest) {
@@ -64,6 +64,12 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+    const clearAll = searchParams.get('all') === 'true';
+    if (clearAll) {
+      await clearAllTransactions();
+      return NextResponse.json({ success: true, message: 'Server data completely wiped' });
+    }
+
     const id = searchParams.get('id');
     if (!id) {
       return NextResponse.json({ success: false, error: 'Transaction ID is required' }, { status: 400 });
