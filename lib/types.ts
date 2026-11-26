@@ -1,4 +1,4 @@
-export type TransactionType = 'inflow' | 'outflow';
+export type TransactionType = 'inflow' | 'outflow' | 'transfer';
 
 export interface Transaction {
   id: string;
@@ -13,6 +13,12 @@ export interface Transaction {
   date: string; // ISO string
   notes?: string;
   created_at: string;
+}
+
+export interface MyAccount {
+  id: string;
+  name: string; // e.g. "HDFC Main", "SBI Savings", "GPay ID"
+  identifier: string; // e.g. "rajat@okhdfcbank", "1234", "9876543210@upi"
 }
 
 export interface CategoryBudget {
@@ -42,6 +48,7 @@ export interface CashFlowStats {
   endDate?: string;
   totalInflow: number;
   totalOutflow: number;
+  totalTransfers: number;
   netCashFlow: number;
   savingsRate: number; // percentage
   dailyBurnRate: number;

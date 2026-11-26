@@ -1,4 +1,4 @@
-import { Transaction, CategoryBudget, CashFlowStats, ReportingPeriod } from './types';
+import { Transaction, CategoryBudget, CashFlowStats, ReportingPeriod, MyAccount } from './types';
 import fs from 'fs';
 import path from 'path';
 
@@ -13,7 +13,11 @@ export const DEFAULT_BUDGETS: CategoryBudget[] = [
   { category: 'Other Expenses', monthly_limit: 5000 },
 ];
 
-// Current reference timestamp: 26 Nov 2026
+export const DEFAULT_MY_ACCOUNTS: MyAccount[] = [
+  { id: 'acc-1', name: 'Primary Bank A/C', identifier: '1234' },
+  { id: 'acc-2', name: 'Savings A/C', identifier: '5678' }
+];
+
 const NOW = new Date('2026-11-26T10:30:00Z');
 
 const SEED_TRANSACTIONS: Transaction[] = [
@@ -41,6 +45,18 @@ const SEED_TRANSACTIONS: Transaction[] = [
     date: new Date('2026-11-26T04:15:00Z').toISOString(),
     created_at: new Date('2026-11-26T04:15:00Z').toISOString(),
     raw_sms: 'Paid Rs 180.00 to Chai Point from A/C **1234.'
+  },
+  {
+    id: 'tx-today-transfer',
+    amount: 5000,
+    type: 'transfer',
+    category: 'Self Transfer',
+    merchant: 'Self Account Transfer (SBI Savings)',
+    account: 'A/C **1234',
+    reference: '433100100099',
+    date: new Date('2026-11-26T07:00:00Z').toISOString(),
+    created_at: new Date('2026-11-26T07:00:00Z').toISOString(),
+    notes: 'Transferred to personal savings account. Excluded from expense.'
   },
 
   // --- THIS WEEK (20 - 25 Nov 2026) ---
@@ -158,90 +174,12 @@ const SEED_TRANSACTIONS: Transaction[] = [
     reference: '433100100012',
     date: new Date('2026-11-03T05:00:00Z').toISOString(),
     created_at: new Date('2026-11-03T05:00:00Z').toISOString(),
-  },
-
-  // --- PAST MONTHS (For Custom Date Range Testing) ---
-  {
-    id: 'tx-oct-1',
-    amount: 85000,
-    type: 'inflow',
-    category: 'Salary & Income',
-    merchant: 'Monthly Salary Credit',
-    account: 'A/C **1234',
-    reference: '433100200001',
-    date: new Date('2026-10-01T04:30:00Z').toISOString(),
-    created_at: new Date('2026-10-01T04:30:00Z').toISOString(),
-  },
-  {
-    id: 'tx-oct-2',
-    amount: 12500,
-    type: 'outflow',
-    category: 'Shopping',
-    merchant: 'Diwali Festive Shopping',
-    account: 'A/C **1234',
-    reference: '433100200002',
-    date: new Date('2026-10-25T14:00:00Z').toISOString(),
-    created_at: new Date('2026-10-25T14:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-oct-3',
-    amount: 8200,
-    type: 'outflow',
-    category: 'Food & Dining',
-    merchant: 'Restaurants & Family Dinner',
-    account: 'A/C **1234',
-    reference: '433100200003',
-    date: new Date('2026-10-20T17:00:00Z').toISOString(),
-    created_at: new Date('2026-10-20T17:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-oct-4',
-    amount: 5800,
-    type: 'outflow',
-    category: 'Groceries',
-    merchant: 'BigBasket & Dmart',
-    account: 'A/C **1234',
-    reference: '433100200004',
-    date: new Date('2026-10-15T09:00:00Z').toISOString(),
-    created_at: new Date('2026-10-15T09:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-sep-1',
-    amount: 85000,
-    type: 'inflow',
-    category: 'Salary & Income',
-    merchant: 'Monthly Salary Credit',
-    account: 'A/C **1234',
-    reference: '433100300001',
-    date: new Date('2026-09-01T04:30:00Z').toISOString(),
-    created_at: new Date('2026-09-01T04:30:00Z').toISOString(),
-  },
-  {
-    id: 'tx-sep-2',
-    amount: 6800,
-    type: 'outflow',
-    category: 'Food & Dining',
-    merchant: 'Dining & Cafes',
-    account: 'A/C **1234',
-    reference: '433100300003',
-    date: new Date('2026-09-22T13:00:00Z').toISOString(),
-    created_at: new Date('2026-09-22T13:00:00Z').toISOString(),
-  },
-  {
-    id: 'tx-sep-3',
-    amount: 5100,
-    type: 'outflow',
-    category: 'Groceries',
-    merchant: 'Local Supermarket & Blinkit',
-    account: 'A/C **1234',
-    reference: '433100300004',
-    date: new Date('2026-09-15T15:00:00Z').toISOString(),
-    created_at: new Date('2026-09-15T15:00:00Z').toISOString(),
   }
 ];
 
 let inMemoryTransactions: Transaction[] = [...SEED_TRANSACTIONS];
 let inMemoryBudgets: CategoryBudget[] = [...DEFAULT_BUDGETS];
+let inMemoryMyAccounts: MyAccount[] = [...DEFAULT_MY_ACCOUNTS];
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'cashflow.json');
@@ -258,6 +196,7 @@ function ensureDataFile() {
           {
             transactions: SEED_TRANSACTIONS,
             budgets: DEFAULT_BUDGETS,
+            myAccounts: DEFAULT_MY_ACCOUNTS
           },
           null,
           2
@@ -275,6 +214,7 @@ function loadFromFile() {
       const data = JSON.parse(content);
       if (Array.isArray(data.transactions)) inMemoryTransactions = data.transactions;
       if (Array.isArray(data.budgets)) inMemoryBudgets = data.budgets;
+      if (Array.isArray(data.myAccounts)) inMemoryMyAccounts = data.myAccounts;
     }
   } catch {}
 }
@@ -288,6 +228,7 @@ function saveToFile() {
         {
           transactions: inMemoryTransactions,
           budgets: inMemoryBudgets,
+          myAccounts: inMemoryMyAccounts
         },
         null,
         2
@@ -298,7 +239,7 @@ function saveToFile() {
 
 loadFromFile();
 
-// Filter function supporting: today, week, month, custom (From date - To date)
+// Filter helper
 export function filterTransactionsByPeriod(
   transactions: Transaction[],
   period: ReportingPeriod = 'month',
@@ -318,13 +259,11 @@ export function filterTransactionsByPeriod(
         return tTime >= startOfToday && tTime <= endOfToday;
 
       case 'week': {
-        // This Week: last 7 days including today
         const startOfWeek = startOfToday - 6 * 86400000;
         return tTime >= startOfWeek && tTime <= endOfToday;
       }
 
       case 'month':
-        // Current Month (Nov 2026)
         return tDate.getFullYear() === now.getFullYear() && tDate.getMonth() === now.getMonth();
 
       case 'custom': {
@@ -370,6 +309,14 @@ export async function addTransaction(tx: Omit<Transaction, 'id' | 'created_at'>)
   return newTx;
 }
 
+export async function updateTransaction(id: string, updates: Partial<Transaction>): Promise<Transaction | null> {
+  const idx = inMemoryTransactions.findIndex(t => t.id === id);
+  if (idx === -1) return null;
+  inMemoryTransactions[idx] = { ...inMemoryTransactions[idx], ...updates };
+  saveToFile();
+  return inMemoryTransactions[idx];
+}
+
 export async function deleteTransaction(id: string): Promise<boolean> {
   inMemoryTransactions = inMemoryTransactions.filter(t => t.id !== id);
   saveToFile();
@@ -399,7 +346,28 @@ export async function saveBudgets(budgets: CategoryBudget[]): Promise<CategoryBu
   return inMemoryBudgets;
 }
 
-// Compute Cash Flow statistics for Today, This Week, Current Month, or Custom Date Range
+// Manage User's Own Accounts & UPI IDs
+export async function getMyAccounts(): Promise<MyAccount[]> {
+  return [...inMemoryMyAccounts];
+}
+
+export async function addMyAccount(account: Omit<MyAccount, 'id'>): Promise<MyAccount> {
+  const newAcc: MyAccount = {
+    ...account,
+    id: `acc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
+  };
+  inMemoryMyAccounts.push(newAcc);
+  saveToFile();
+  return newAcc;
+}
+
+export async function deleteMyAccount(id: string): Promise<boolean> {
+  inMemoryMyAccounts = inMemoryMyAccounts.filter(a => a.id !== id);
+  saveToFile();
+  return true;
+}
+
+// Compute Cash Flow statistics: EXCLUDES 'transfer' / 'Self Transfer' from expenses & income!
 export async function getCashFlowStats(
   period: ReportingPeriod = 'month',
   startDateStr?: string,
@@ -412,6 +380,7 @@ export async function getCashFlowStats(
 
   let totalInflow = 0;
   let totalOutflow = 0;
+  let totalTransfers = 0;
   const categorySpending: Record<string, number> = {};
   const categoryBudgetsMap: Record<string, number> = {};
 
@@ -420,6 +389,12 @@ export async function getCashFlowStats(
   });
 
   periodTxs.forEach(t => {
+    // 🛡️ SELF TRANSFERS ARE COMPLETELY EXCLUDED FROM EXPENSE & INCOME!
+    if (t.type === 'transfer' || t.category === 'Self Transfer') {
+      totalTransfers += t.amount;
+      return;
+    }
+
     if (t.type === 'inflow') {
       totalInflow += t.amount;
     } else {
@@ -498,6 +473,7 @@ export async function getCashFlowStats(
     endDate: endDateStr,
     totalInflow,
     totalOutflow,
+    totalTransfers,
     netCashFlow,
     savingsRate,
     dailyBurnRate,

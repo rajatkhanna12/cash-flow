@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseBankSMS } from '@/lib/sms-parser';
-import { addTransaction, isDuplicateTransaction } from '@/lib/db';
+import { addTransaction, isDuplicateTransaction, getMyAccounts } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,8 +45,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Extract financial details using parser
-    const parsed = parseBankSMS(rawText, receivedAt);
+    // 3. Load user's own accounts & UPI IDs for Auto Self-Transfer Detection
+    const myAccounts = await getMyAccounts();
+    const myAccountIdentifiers = myAccounts.map(a => a.identifier);
+
+    // 4. Extract financial details using parser with user's own accounts
+    const parsed = parseBankSMS(rawText, receivedAt, myAccountIdentifiers);
     if (!parsed.success || !parsed.amount) {
       return NextResponse.json(
         {
@@ -58,7 +62,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Deduplication Check
+    // 5. Deduplication Check
     const isDup = await isDuplicateTransaction(parsed.reference, parsed.amount, parsed.merchant);
     if (isDup) {
       return NextResponse.json(
@@ -76,7 +80,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Store in Database
+    // 6. Store in Database
     const savedTx = await addTransaction({
       amount: parsed.amount,
       type: parsed.type || 'outflow',
@@ -92,7 +96,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: 'Transaction recorded successfully',
+        message: parsed.type === 'transfer' ? 'Self Transfer recorded (excluded from expense)' : 'Transaction recorded successfully',
         transaction: savedTx
       },
       { status: 201 }
@@ -106,7 +110,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Support GET for testing if endpoint is reachable
 export async function GET() {
   return NextResponse.json({
     status: 'online',

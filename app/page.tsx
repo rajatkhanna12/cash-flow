@@ -23,14 +23,21 @@ import {
   Sparkles,
   BarChart3,
   Clock,
-  CalendarRange
+  CalendarRange,
+  ArrowLeftRight,
+  CreditCard,
+  Building2
 } from 'lucide-react';
-import { Transaction, CashFlowStats, CategoryBudget, ReportingPeriod } from '@/lib/types';
+import { Transaction, CashFlowStats, CategoryBudget, ReportingPeriod, MyAccount } from '@/lib/types';
 
 const SAMPLE_SMS_TEMPLATES = [
   {
     label: 'Swiggy (Debit)',
     text: 'Sent Rs.480.00 from HDFC Bank A/C **1234 to SWIGGY on 26-NOV-26. Ref 433129841892. Avbl bal Rs. 38,500.00.'
+  },
+  {
+    label: 'Self-Transfer (Own A/C)',
+    text: 'INR 10,000.00 debited from A/C **1234 on 26-Nov-26 transfer to own a/c linked to VPA rajat@oksbi. UPI Ref 433156789123.'
   },
   {
     label: 'Salary Credit',
@@ -45,10 +52,6 @@ const SAMPLE_SMS_TEMPLATES = [
     text: 'Dear Customer, Acct XX123 debited with INR 2,499.00 on 26-Nov-26. Info: VPS*AMAZON. Avbl Bal INR 42,100.00.'
   },
   {
-    label: 'Client (Inflow)',
-    text: 'Your A/C **1234 is credited by Rs 25,000.00 from Client VPA rakesh@okhdfcbank. Ref 433112233445.'
-  },
-  {
     label: 'Uber (Debit)',
     text: 'Kotak Bank: Rs. 385.00 debited from A/C ...123 on 26-Nov-26. UPI Ref: 433156789012. Beneficiary: UBER.'
   }
@@ -58,8 +61,9 @@ export default function CashFlowApp() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [stats, setStats] = useState<CashFlowStats | null>(null);
   const [budgets, setBudgets] = useState<CategoryBudget[]>([]);
+  const [myAccounts, setMyAccounts] = useState<MyAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'flow' | 'budgets' | 'simulator' | 'iphone-setup'>('flow');
+  const [activeTab, setActiveTab] = useState<'flow' | 'accounts' | 'budgets' | 'simulator' | 'iphone-setup'>('flow');
 
   // Exact Requested Filters: today | week | month | custom
   const [selectedPeriod, setSelectedPeriod] = useState<ReportingPeriod>('month');
@@ -70,7 +74,11 @@ export default function CashFlowApp() {
 
   // Search & Type Filter
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'inflow' | 'outflow'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'inflow' | 'outflow' | 'transfer'>('all');
+
+  // New Account state
+  const [newAccName, setNewAccName] = useState('');
+  const [newAccIdentifier, setNewAccIdentifier] = useState('');
 
   // Simulator state
   const [simulatorSMS, setSimulatorSMS] = useState('');
@@ -81,7 +89,7 @@ export default function CashFlowApp() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTx, setNewTx] = useState({
     amount: '',
-    type: 'outflow' as 'inflow' | 'outflow',
+    type: 'outflow' as 'inflow' | 'outflow' | 'transfer',
     merchant: '',
     category: 'Food & Dining',
     notes: ''
@@ -102,19 +110,22 @@ export default function CashFlowApp() {
         query += `&startDate=${fromD}&endDate=${toD}`;
       }
 
-      const [txRes, statsRes, budgetRes] = await Promise.all([
+      const [txRes, statsRes, budgetRes, accRes] = await Promise.all([
         fetch(`/api/transactions?${query}`),
         fetch(`/api/stats?${query}`),
-        fetch('/api/budgets')
+        fetch('/api/budgets'),
+        fetch('/api/my-accounts')
       ]);
 
       const txData = await txRes.json();
       const statsData = await statsRes.json();
       const budgetData = await budgetRes.json();
+      const accData = await accRes.json();
 
       if (txData.success) setTransactions(txData.transactions);
       if (statsData.success) setStats(statsData.stats);
       if (budgetData.success) setBudgets(budgetData.budgets);
+      if (accData.success) setMyAccounts(accData.accounts);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -132,6 +143,64 @@ export default function CashFlowApp() {
 
   const handleApplyCustomDates = () => {
     fetchData('custom', customFromDate, customToDate);
+  };
+
+  // Add Dynamic Account / UPI ID
+  const handleAddAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAccIdentifier.trim()) return;
+
+    try {
+      const res = await fetch('/api/my-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newAccName || 'My Bank/UPI',
+          identifier: newAccIdentifier.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNewAccName('');
+        setNewAccIdentifier('');
+        await fetchData(selectedPeriod, customFromDate, customToDate);
+        alert('UPI / Account successfully add ho gaya!');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Delete Account
+  const handleDeleteAccount = async (id: string) => {
+    if (!confirm('Yeh account/UPI ID delete karein?')) return;
+    try {
+      await fetch(`/api/my-accounts?id=${id}`, { method: 'DELETE' });
+      await fetchData(selectedPeriod, customFromDate, customToDate);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // 1-Tap Toggle between Transfer and Outflow
+  const handleToggleTransfer = async (tx: Transaction) => {
+    const isNowTransfer = tx.type !== 'transfer';
+    try {
+      await fetch('/api/transactions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: tx.id,
+          updates: {
+            type: isNowTransfer ? 'transfer' : 'outflow',
+            category: isNowTransfer ? 'Self Transfer' : 'Other Expenses'
+          }
+        })
+      });
+      await fetchData(selectedPeriod, customFromDate, customToDate);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleSimulate = async (smsText: string) => {
@@ -221,6 +290,7 @@ export default function CashFlowApp() {
   const inflow = stats?.totalInflow || 0;
   const outflow = stats?.totalOutflow || 0;
   const net = stats?.netCashFlow || 0;
+  const transfers = stats?.totalTransfers || 0;
   const expensePercentage = inflow > 0 ? Math.min(100, Math.round((outflow / inflow) * 100)) : 100;
   const savingsPercentage = 100 - expensePercentage;
 
@@ -240,7 +310,7 @@ export default function CashFlowApp() {
                   Live
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400">Reporting & Expense Control</p>
+              <p className="text-[10px] text-slate-400">Reporting & Self-Transfers</p>
             </div>
           </div>
 
@@ -311,7 +381,7 @@ export default function CashFlowApp() {
             </button>
           </div>
 
-          {/* 📅 CUSTOM DATE RANGE PICKER (EXPANDS WHEN CUSTOM DATE IS ACTIVE) */}
+          {/* 📅 CUSTOM DATE RANGE EXPANDABLE */}
           {selectedPeriod === 'custom' && (
             <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 space-y-2 animate-in fade-in duration-200">
               <div className="grid grid-cols-2 gap-2 text-xs">
@@ -390,7 +460,7 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 📊 TAB 1: FLOW & SUMMARY FOR SELECTED PERIOD */}
+        {/* 📊 TAB 1: FLOW (HOME) */}
         {activeTab === 'flow' && (
           <div className="space-y-4">
             {/* HERO CASH FLOW CARD FOR CHOSEN FILTER */}
@@ -421,7 +491,7 @@ export default function CashFlowApp() {
                   <div className="text-base font-extrabold text-emerald-950 mt-1">
                     {stats ? formatCurrency(stats.totalInflow) : '₹0'}
                   </div>
-                  <p className="text-[10px] text-emerald-700 mt-0.5">Is time period mein</p>
+                  <p className="text-[10px] text-emerald-700 mt-0.5">Real Income</p>
                 </div>
 
                 <div className="bg-rose-50/70 border border-rose-200/70 rounded-xl p-2.5">
@@ -435,6 +505,22 @@ export default function CashFlowApp() {
                   <p className="text-[10px] text-rose-700 mt-0.5">{expensePercentage}% of income</p>
                 </div>
               </div>
+
+              {/* 🛡️ SELF-TRANSFERS STATS CALLOUT (EXCLUDED FROM EXPENSE) */}
+              {transfers > 0 && (
+                <div className="bg-sky-50/80 border border-sky-200/80 rounded-xl p-2.5 flex items-center justify-between text-xs text-sky-900">
+                  <div className="flex items-center space-x-2">
+                    <ArrowLeftRight className="h-4 w-4 text-sky-600 flex-shrink-0" />
+                    <div>
+                      <span className="font-bold">Self Account Transfers: {formatCurrency(transfers)}</span>
+                      <p className="text-[10px] text-sky-700">Aapke accounts ke beech move hua (Zero expense)</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold bg-white text-sky-800 px-2 py-0.5 rounded-full border border-sky-200">
+                    Safe
+                  </span>
+                </div>
+              )}
 
               {/* FLOW PROPORTION BAR */}
               <div className="space-y-1.5 pt-1">
@@ -452,50 +538,6 @@ export default function CashFlowApp() {
                     style={{ width: `${Math.max(0, savingsPercentage)}%` }}
                   />
                 </div>
-                <div className="flex justify-between items-center text-[10px] text-slate-400 pt-0.5">
-                  <span>Daily Run Rate: <strong className="text-slate-700">{stats ? formatCurrency(stats.dailyBurnRate) : '₹0'}/din</strong></span>
-                  <span>Projected Month: <strong className="text-slate-700">{stats ? formatCurrency(stats.projectedMonthlyOutflow) : '₹0'}</strong></span>
-                </div>
-              </div>
-            </div>
-
-            {/* CATEGORY EXPENSE SHARE FOR CHOSEN FILTER */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <BarChart3 className="h-3.5 w-3.5 text-emerald-600" />
-                  Kharch Ka Batwara ({stats?.periodLabel})
-                </span>
-                <span className="text-[10px] text-slate-400 font-bold">Category Wise</span>
-              </div>
-
-              <div className="space-y-2.5">
-                {stats && Object.keys(stats.categorySpending).length === 0 ? (
-                  <p className="text-xs text-slate-400 py-3 text-center">Is time period mein koi kharch nahi hua.</p>
-                ) : (
-                  stats &&
-                  Object.entries(stats.categorySpending)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([cat, spent]) => {
-                      const pct = stats.categoryPercentages[cat] || 0;
-                      return (
-                        <div key={cat} className="space-y-1">
-                          <div className="flex justify-between text-xs">
-                            <span className="font-semibold text-slate-800">{cat}</span>
-                            <span className="text-[11px] text-slate-600">
-                              <strong className="text-slate-900">{formatCurrency(spent)}</strong> ({pct}% of total)
-                            </span>
-                          </div>
-                          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className="bg-slate-800 h-full rounded-full transition-all duration-300"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })
-                )}
               </div>
             </div>
 
@@ -512,21 +554,27 @@ export default function CashFlowApp() {
                 <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-semibold">
                   <button
                     onClick={() => setFilterType('all')}
-                    className={`px-2 py-0.5 rounded-md transition ${filterType === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
+                    className={`px-1.5 py-0.5 rounded-md transition ${filterType === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
                   >
                     All
                   </button>
                   <button
                     onClick={() => setFilterType('inflow')}
-                    className={`px-2 py-0.5 rounded-md transition ${filterType === 'inflow' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500'}`}
+                    className={`px-1.5 py-0.5 rounded-md transition ${filterType === 'inflow' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500'}`}
                   >
                     Aaya
                   </button>
                   <button
                     onClick={() => setFilterType('outflow')}
-                    className={`px-2 py-0.5 rounded-md transition ${filterType === 'outflow' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-500'}`}
+                    className={`px-1.5 py-0.5 rounded-md transition ${filterType === 'outflow' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-500'}`}
                   >
                     Gaya
+                  </button>
+                  <button
+                    onClick={() => setFilterType('transfer')}
+                    className={`px-1.5 py-0.5 rounded-md transition ${filterType === 'transfer' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-500'}`}
+                  >
+                    Transfer
                   </button>
                 </div>
               </div>
@@ -542,35 +590,66 @@ export default function CashFlowApp() {
                       <div className="flex items-center space-x-2.5 min-w-0">
                         <div
                           className={`h-8 w-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                            tx.type === 'inflow' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                            tx.type === 'transfer'
+                              ? 'bg-sky-100 text-sky-800'
+                              : tx.type === 'inflow'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-rose-100 text-rose-800'
                           }`}
                         >
-                          {tx.type === 'inflow' ? (
+                          {tx.type === 'transfer' ? (
+                            <ArrowLeftRight className="h-4 w-4" />
+                          ) : tx.type === 'inflow' ? (
                             <ArrowUpRight className="h-4 w-4" />
                           ) : (
                             <ArrowDownRight className="h-4 w-4" />
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-900 truncate">
-                            {tx.merchant}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-slate-900 truncate">
+                              {tx.merchant}
+                            </p>
+                            {tx.type === 'transfer' && (
+                              <span className="text-[9px] bg-sky-100 text-sky-800 font-bold px-1.5 py-0.2 rounded">
+                                Self Transfer
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
                             <span className="text-slate-600 font-medium">{tx.category}</span>
                             <span>•</span>
-                            <span>{new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                            <span>{new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-2 flex-shrink-0">
+                      <div className="flex items-center space-x-1.5 flex-shrink-0">
                         <span
                           className={`text-xs font-bold ${
-                            tx.type === 'inflow' ? 'text-emerald-700' : 'text-slate-900'
+                            tx.type === 'transfer'
+                              ? 'text-sky-700'
+                              : tx.type === 'inflow'
+                              ? 'text-emerald-700'
+                              : 'text-slate-900'
                           }`}
                         >
-                          {tx.type === 'inflow' ? '+' : '-'} {formatCurrency(tx.amount)}
+                          {tx.type === 'transfer' ? '⇄ ' : tx.type === 'inflow' ? '+' : '-'} {formatCurrency(tx.amount)}
                         </span>
+                        
+                        {/* 1-Tap Toggle between Expense & Transfer */}
+                        <button
+                          onClick={() => handleToggleTransfer(tx)}
+                          title={tx.type === 'transfer' ? 'Convert to Expense' : 'Mark as Self-Transfer (Exclude)'}
+                          className={`p-1 rounded-md text-[10px] border transition ${
+                            tx.type === 'transfer'
+                              ? 'bg-sky-50 text-sky-700 border-sky-200'
+                              : 'bg-slate-50 text-slate-400 hover:text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          <ArrowLeftRight className="h-3 w-3" />
+                        </button>
+
                         <button
                           onClick={() => handleDeleteTx(tx.id)}
                           className="text-slate-300 hover:text-rose-600 p-1"
@@ -587,7 +666,85 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 🛡️ TAB 2: KHARCH CONTROL & BUDGETS */}
+        {/* 💳 TAB 2: MY ACCOUNTS & UPI (DYNAMIC SELF-TRANSFER SETUP) */}
+        {activeTab === 'accounts' && (
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
+            <div className="border-b border-slate-100 pb-2.5">
+              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <CreditCard className="h-4 w-4 text-emerald-600" />
+                My Bank Accounts & UPI IDs (Self-Transfer)
+              </h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Yahan apne saare Bank A/C numbers ya UPI IDs add kar dein. Jab bhi aap in accounts ke beech paise bhejenge, system <strong>100% automatically</strong> usko Self-Transfer pehchanega aur <strong>kharch mein count nahi karega!</strong>
+              </p>
+            </div>
+
+            {/* Add New UPI/Account Form */}
+            <form onSubmit={handleAddAccount} className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5">
+              <span className="text-[11px] font-bold text-slate-800 block">Naya Account / UPI ID Add Karein:</span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <label className="text-[10px] text-slate-500 font-semibold block mb-0.5">Account Ka Naam</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. HDFC Salary, SBI"
+                    value={newAccName}
+                    onChange={e => setNewAccName(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-emerald-500 shadow-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 font-semibold block mb-0.5">UPI ID ya A/C Number</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. rajat@okhdfcbank ya 1234"
+                    value={newAccIdentifier}
+                    onChange={e => setNewAccIdentifier(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-xs"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded-lg text-xs shadow-xs transition"
+              >
+                + Add My Account
+              </button>
+            </form>
+
+            {/* List of currently active accounts */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-slate-900">Active Whitelisted Accounts ({myAccounts.length}):</span>
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                {myAccounts.length === 0 ? (
+                  <p className="p-3 text-xs text-slate-400 text-center">Koi account add nahi hai.</p>
+                ) : (
+                  myAccounts.map(acc => (
+                    <div key={acc.id} className="p-2.5 flex items-center justify-between bg-white hover:bg-slate-50 text-xs">
+                      <div className="flex items-center space-x-2">
+                        <Building2 className="h-4 w-4 text-emerald-600" />
+                        <div>
+                          <span className="font-bold text-slate-900">{acc.name}</span>
+                          <span className="text-[10px] text-slate-500 font-mono block">{acc.identifier}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteAccount(acc.id)}
+                        className="text-slate-300 hover:text-rose-600 p-1"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 🛡️ TAB 3: KHARCH CONTROL & BUDGETS */}
         {activeTab === 'budgets' && (
           <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
             <div className="border-b border-slate-100 pb-2.5">
@@ -660,7 +817,7 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 🧪 TAB 3: SMS TESTER */}
+        {/* 🧪 TAB 4: SMS TESTER */}
         {activeTab === 'simulator' && (
           <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3.5">
             <div>
@@ -669,7 +826,7 @@ export default function CashFlowApp() {
                 Bank SMS Parser Tester
               </h2>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                Bank ya UPI SMS paste karke live test karein.
+                Bank ya UPI SMS paste karke live test karein (Self Transfer bhi test kar sakte hain).
               </p>
             </div>
 
@@ -737,7 +894,7 @@ export default function CashFlowApp() {
           </div>
         )}
 
-        {/* 📱 TAB 4: IPHONE SETUP GUIDE */}
+        {/* 📱 TAB 5: IPHONE SETUP GUIDE */}
         {activeTab === 'iphone-setup' && (
           <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
             <div className="border-b border-slate-100 pb-2.5">
@@ -839,7 +996,7 @@ export default function CashFlowApp() {
 
       {/* 📱 NATIVE iOS STYLE FIXED BOTTOM NAVIGATION BAR */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200/90 z-40 shadow-lg">
-        <div className="max-w-lg mx-auto px-4 h-16 flex items-center justify-around">
+        <div className="max-w-lg mx-auto px-2 h-16 flex items-center justify-around">
           <button
             onClick={() => setActiveTab('flow')}
             className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
@@ -848,6 +1005,16 @@ export default function CashFlowApp() {
           >
             <Wallet className="h-5 w-5" />
             <span className="text-[10px] mt-1">Cash Flow</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('accounts')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
+              activeTab === 'accounts' ? 'text-emerald-600 font-bold' : 'text-slate-400 font-medium'
+            }`}
+          >
+            <CreditCard className="h-5 w-5" />
+            <span className="text-[10px] mt-1">My UPI/A/C</span>
           </button>
 
           <button
@@ -899,28 +1066,39 @@ export default function CashFlowApp() {
             <form onSubmit={handleAddManual} className="space-y-3">
               <div>
                 <label className="text-[11px] font-semibold text-slate-500 block mb-1">Type</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setNewTx({ ...newTx, type: 'outflow' })}
-                    className={`py-2 rounded-xl text-xs font-bold border transition ${
+                    className={`py-2 rounded-xl text-xs font-bold border transition text-center ${
                       newTx.type === 'outflow'
                         ? 'bg-rose-50 border-rose-300 text-rose-800'
                         : 'bg-slate-50 border-slate-200 text-slate-600'
                     }`}
                   >
-                    Kharch (Outflow)
+                    Kharch
                   </button>
                   <button
                     type="button"
                     onClick={() => setNewTx({ ...newTx, type: 'inflow' })}
-                    className={`py-2 rounded-xl text-xs font-bold border transition ${
+                    className={`py-2 rounded-xl text-xs font-bold border transition text-center ${
                       newTx.type === 'inflow'
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
                         : 'bg-slate-50 border-slate-200 text-slate-600'
                     }`}
                   >
-                    Income (Inflow)
+                    Income
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewTx({ ...newTx, type: 'transfer' })}
+                    className={`py-2 rounded-xl text-xs font-bold border transition text-center ${
+                      newTx.type === 'transfer'
+                        ? 'bg-sky-50 border-sky-300 text-sky-800'
+                        : 'bg-slate-50 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    Self Transfer
                   </button>
                 </div>
               </div>
@@ -938,11 +1116,11 @@ export default function CashFlowApp() {
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-500 block mb-1">Merchant / Source</label>
+                <label className="text-[11px] font-semibold text-slate-500 block mb-1">Merchant / Recipient</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Swiggy, Netflix, Client Retainer"
+                  placeholder="e.g. Swiggy, SBI Savings, Client"
                   value={newTx.merchant}
                   onChange={e => setNewTx({ ...newTx, merchant: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
@@ -965,6 +1143,7 @@ export default function CashFlowApp() {
                   <option value="Health & Medical">Health & Medical</option>
                   <option value="Investments & Savings">Investments & Savings</option>
                   <option value="Salary & Income">Salary & Income</option>
+                  <option value="Self Transfer">Self Transfer</option>
                   <option value="Other Expenses">Other Expenses</option>
                 </select>
               </div>

@@ -1,6 +1,5 @@
 import { SMSParseResult, TransactionType } from './types';
 
-// Category mapping based on merchant keywords
 const CATEGORY_RULES: Record<string, string[]> = {
   'Food & Dining': [
     'swiggy', 'zomato', 'mcdonald', 'kfc', 'dominos', 'burger king', 'pizza hut',
@@ -45,7 +44,16 @@ const CATEGORY_RULES: Record<string, string[]> = {
   ]
 };
 
-export function parseBankSMS(rawText: string, defaultDate = new Date()): SMSParseResult {
+const SELF_TRANSFER_KEYWORDS = [
+  'self transfer', 'transfer to own', 'trf to own', 'own a/c', 'to own account',
+  'within bank', 'linked a/c', 'internal transfer', 'tpt to', 'to my account'
+];
+
+export function parseBankSMS(
+  rawText: string,
+  defaultDate = new Date(),
+  myAccounts: string[] = []
+): SMSParseResult {
   if (!rawText || typeof rawText !== 'string' || rawText.trim().length === 0) {
     return { success: false, confidence: 0, error: 'Empty SMS text provided' };
   }
@@ -53,7 +61,27 @@ export function parseBankSMS(rawText: string, defaultDate = new Date()): SMSPars
   const text = rawText.trim();
   const lower = text.toLowerCase();
 
-  // 1. Detect Transaction Type (Inflow vs Outflow)
+  // 1. Detect if it's a Self-Transfer
+  let isSelfTransfer = false;
+  for (const kw of SELF_TRANSFER_KEYWORDS) {
+    if (lower.includes(kw)) {
+      isSelfTransfer = true;
+      break;
+    }
+  }
+
+  // Check if any of user's own accounts/UPI IDs are present in the SMS as recipient
+  if (!isSelfTransfer && myAccounts && myAccounts.length > 0) {
+    for (const acc of myAccounts) {
+      const cleanAcc = acc.trim().toLowerCase();
+      if (cleanAcc && lower.includes(cleanAcc)) {
+        isSelfTransfer = true;
+        break;
+      }
+    }
+  }
+
+  // 2. Detect Transaction Type (Inflow vs Outflow vs Transfer)
   let type: TransactionType = 'outflow';
   let isCredit = false;
   let isDebit = false;
@@ -81,14 +109,13 @@ export function parseBankSMS(rawText: string, defaultDate = new Date()): SMSPars
     }
   }
 
-  // If both or neither match, check phrasing context
-  if (isCredit && !isDebit) {
+  if (isSelfTransfer) {
+    type = 'transfer';
+  } else if (isCredit && !isDebit) {
     type = 'inflow';
   } else if (isDebit && !isCredit) {
     type = 'outflow';
   } else if (isCredit && isDebit) {
-    // E.g., "Rs 500 debited from A/C ... credited to ..."
-    // The subject's account is usually debited
     if (lower.includes('debited from your') || lower.includes('debited by') || lower.includes('your a/c is debited')) {
       type = 'outflow';
     } else if (lower.includes('credited to your') || lower.includes('your a/c is credited')) {
@@ -97,16 +124,10 @@ export function parseBankSMS(rawText: string, defaultDate = new Date()): SMSPars
       type = 'outflow';
     }
   } else {
-    // Default fallback heuristics
-    if (lower.includes('credited') || lower.includes('cr') || lower.includes('received')) {
-      type = 'inflow';
-    } else {
-      type = 'outflow';
-    }
+    type = lower.includes('credited') || lower.includes('cr') ? 'inflow' : 'outflow';
   }
 
-  // 2. Extract Amount
-  // Matches: Rs. 500, Rs 500.50, INR 1,234.00, ₹450, etc.
+  // 3. Extract Amount
   const amountRegex = /(?:rs\.?|inr|₹)\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/i;
   const reverseAmountRegex = /([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)\s*(?:rs\.?|inr|₹)/i;
 
@@ -129,7 +150,6 @@ export function parseBankSMS(rawText: string, defaultDate = new Date()): SMSPars
     };
   }
 
-  // Clean comma from amount
   const cleanedAmount = parseFloat(amountStr.replace(/,/g, ''));
   if (isNaN(cleanedAmount) || cleanedAmount <= 0) {
     return {
@@ -139,54 +159,42 @@ export function parseBankSMS(rawText: string, defaultDate = new Date()): SMSPars
     };
   }
 
-  // 3. Extract Merchant / Beneficiary / VPA
-  let merchant = 'Unknown Merchant';
+  // 4. Extract Merchant / Beneficiary / VPA
+  let merchant = isSelfTransfer ? 'Self Account Transfer' : 'Direct Payment';
   
-  // Try pattern: "to <merchant> on" or "to VPA <vpa>" or "at <merchant>" or "Info: <info>"
-  const merchantPatterns = [
-    /(?:to|at|towards)\s+(?:vpa\s+)?([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\s+upi|\s+dated|\s+bal|\s+not you|\.|\n|$)/i,
-    /info[:\s]+([A-Za-z0-9._@\-* ]+?)(?:\s+avbl|\s+bal|\.|\n|$)/i,
-    /beneficiary[:\s]+([A-Za-z0-9._@\- ]+?)(?:\s+on|\.|\n|$)/i,
-    /transfer\s+to\s+([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\.|\n|$)/i,
-    /paid\s+to\s+([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+via|\.|\n|$)/i,
-    /from\s+(?:vpa\s+)?([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\.|\n|$)/i
-  ];
+  if (!isSelfTransfer) {
+    const merchantPatterns = [
+      /(?:to|at|towards)\s+(?:vpa\s+)?([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\s+upi|\s+dated|\s+bal|\s+not you|\.|\n|$)/i,
+      /info[:\s]+([A-Za-z0-9._@\-* ]+?)(?:\s+avbl|\s+bal|\.|\n|$)/i,
+      /beneficiary[:\s]+([A-Za-z0-9._@\- ]+?)(?:\s+on|\.|\n|$)/i,
+      /transfer\s+to\s+([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\.|\n|$)/i,
+      /paid\s+to\s+([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+via|\.|\n|$)/i,
+      /from\s+(?:vpa\s+)?([A-Za-z0-9._@\- ]+?)(?:\s+on|\s+ref|\.|\n|$)/i
+    ];
 
-  for (const regex of merchantPatterns) {
-    const m = text.match(regex);
-    if (m && m[1]) {
-      let candidate = m[1].trim();
-      // Remove trailing words like "Bank", clean special characters
-      candidate = candidate.replace(/[.*]+$/, '').trim();
-      // Filter out junk
-      if (candidate.length >= 2 && !candidate.toLowerCase().startsWith('your a/c')) {
-        // If it's a UPI ID like xyz@okaxis, format it nicely
-        if (candidate.includes('@')) {
-          const upiHandle = candidate.split('@')[0];
-          merchant = upiHandle.toUpperCase();
-        } else {
-          merchant = candidate;
+    for (const regex of merchantPatterns) {
+      const m = text.match(regex);
+      if (m && m[1]) {
+        let candidate = m[1].trim();
+        candidate = candidate.replace(/[.*]+$/, '').trim();
+        if (candidate.length >= 2 && !candidate.toLowerCase().startsWith('your a/c')) {
+          if (candidate.includes('@')) {
+            const upiHandle = candidate.split('@')[0];
+            merchant = upiHandle.toUpperCase();
+          } else {
+            merchant = candidate;
+          }
+          break;
         }
-        break;
       }
     }
-  }
 
-  // If still unknown or raw vpa prefix:
-  if (merchant === 'Unknown Merchant' || merchant.length < 2) {
-    if (type === 'inflow') {
-      merchant = 'Incoming Transfer / Income';
-    } else {
-      merchant = 'Direct Payment';
+    if (merchant.toUpperCase().startsWith('VPS*')) {
+      merchant = merchant.substring(4);
     }
   }
 
-  // Clean merchant name if it has VPS* prefix (common in ICICI/HDFC)
-  if (merchant.toUpperCase().startsWith('VPS*')) {
-    merchant = merchant.substring(4);
-  }
-
-  // 4. Extract Account Number
+  // 5. Account number
   let account = 'Bank Account';
   const accountRegex = /(?:a\/c|acct|account)\s*(?:no\.?)?\s*([xX*]*\d{3,5})/i;
   const accMatch = text.match(accountRegex);
@@ -194,7 +202,7 @@ export function parseBankSMS(rawText: string, defaultDate = new Date()): SMSPars
     account = `A/C ${accMatch[1]}`;
   }
 
-  // 5. Extract Reference / UTR Number
+  // 6. Reference number
   let reference: string | undefined = undefined;
   const refRegex = /(?:upi\s+ref(?:\s+no)?|ref(?:\s+no)?|rrn|utr|txn\s+id)[:\s]+([0-9a-zA-Z]{6,16})/i;
   const refMatch = text.match(refRegex);
@@ -202,24 +210,27 @@ export function parseBankSMS(rawText: string, defaultDate = new Date()): SMSPars
     reference = refMatch[1].trim();
   }
 
-  // 6. Categorize based on Merchant name or SMS text
-  let category = type === 'inflow' ? 'Salary & Income' : 'Other Expenses';
-  const searchCorpus = `${merchant} ${lower}`;
+  // 7. Auto-Categorize
+  let category = isSelfTransfer
+    ? 'Self Transfer'
+    : type === 'inflow'
+    ? 'Salary & Income'
+    : 'Other Expenses';
 
-  for (const [catName, keywords] of Object.entries(CATEGORY_RULES)) {
-    for (const kw of keywords) {
-      if (searchCorpus.includes(kw)) {
-        category = catName;
+  if (!isSelfTransfer) {
+    const searchCorpus = `${merchant} ${lower}`;
+    for (const [catName, keywords] of Object.entries(CATEGORY_RULES)) {
+      for (const kw of keywords) {
+        if (searchCorpus.includes(kw)) {
+          category = catName;
+          break;
+        }
+      }
+      if (category !== (type === 'inflow' ? 'Salary & Income' : 'Other Expenses')) {
         break;
       }
     }
-    if (category !== (type === 'inflow' ? 'Salary & Income' : 'Other Expenses')) {
-      break;
-    }
   }
-
-  // High confidence if amount and type were found
-  const confidence = reference ? 0.95 : 0.85;
 
   return {
     success: true,
@@ -230,7 +241,7 @@ export function parseBankSMS(rawText: string, defaultDate = new Date()): SMSPars
     account,
     reference,
     date: defaultDate.toISOString(),
-    confidence
+    confidence: isSelfTransfer ? 0.99 : reference ? 0.95 : 0.85
   };
 }
 
