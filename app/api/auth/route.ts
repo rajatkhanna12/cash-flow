@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyPinOrPassword, AUTH_COOKIE_NAME, AUTH_TOKEN_SECRET, isAuthenticated } from '@/lib/auth';
+import { verifyCredentials, AUTH_COOKIE_NAME, AUTH_TOKEN_SECRET, isAuthenticated } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   const authed = isAuthenticated(req);
@@ -8,14 +8,20 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { password } = await req.json();
-    if (!password) {
-      return NextResponse.json({ success: false, error: 'Passcode / PIN required' }, { status: 400 });
+    const { username, password } = await req.json();
+    if (!username || !password) {
+      return NextResponse.json(
+        { success: false, error: 'Username aur Password dono zaroori hain' },
+        { status: 400 }
+      );
     }
 
-    const isValid = verifyPinOrPassword(password);
+    const isValid = verifyCredentials(username, password);
     if (!isValid) {
-      return NextResponse.json({ success: false, error: 'Galat PIN / Password! Dobara try karein.' }, { status: 401 });
+      return NextResponse.json(
+        { success: false, error: 'Galat Username ya Password! Dobara check karein.' },
+        { status: 401 }
+      );
     }
 
     const response = NextResponse.json({
@@ -24,7 +30,7 @@ export async function POST(req: NextRequest) {
       token: AUTH_TOKEN_SECRET
     });
 
-    // 30 days session
+    // 30 days session cookie
     response.cookies.set({
       name: AUTH_COOKIE_NAME,
       value: AUTH_TOKEN_SECRET,

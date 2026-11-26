@@ -35,7 +35,8 @@ import {
   KeyRound,
   LogOut,
   Eye,
-  EyeOff
+  EyeOff,
+  User
 } from 'lucide-react';
 import { Transaction, CashFlowStats, CategoryBudget, ReportingPeriod, MyAccount } from '@/lib/types';
 
@@ -122,12 +123,13 @@ export default function CashFlowApp() {
   });
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // 🔐 Authentication State
+  // 🔐 Authentication State (Username & Password)
   const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
-  const [authPin, setAuthPin] = useState('');
+  const [authUsername, setAuthUsername] = useState('Admin');
+  const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
-  const [showPinText, setShowPinText] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -193,8 +195,8 @@ export default function CashFlowApp() {
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!authPin.trim()) {
-      setAuthError('Kripya PIN ya Password enter karein');
+    if (!authUsername.trim() || !authPassword.trim()) {
+      setAuthError('Kripya Username aur Password dono enter karein');
       return;
     }
     setAuthLoading(true);
@@ -203,15 +205,18 @@ export default function CashFlowApp() {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: authPin.trim() })
+        body: JSON.stringify({
+          username: authUsername.trim(),
+          password: authPassword.trim()
+        })
       });
       const data = await res.json();
       if (data.success) {
         setIsAuthed(true);
-        setAuthPin('');
+        setAuthPassword('');
         await fetchData(selectedPeriod, customFromDate, customToDate);
       } else {
-        setAuthError(data.error || 'Galat PIN / Password!');
+        setAuthError(data.error || 'Galat Username ya Password!');
       }
     } catch {
       setAuthError('Connection error, dobara try karein');
@@ -429,113 +434,94 @@ export default function CashFlowApp() {
     );
   }
 
-  // 🔒 LOGIN / PASSCODE LOCK SCREEN
+  // 🔒 LOGIN SCREEN (Username & Password)
   if (isAuthed === false) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 select-none">
-        <div className="w-full max-w-sm bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-5 text-center">
-          <div className="flex flex-col items-center space-y-2">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 flex flex-col items-center justify-center p-4 select-none">
+        <div className="w-full max-w-sm bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-5">
+          <div className="flex flex-col items-center text-center space-y-2">
             <div className="h-14 w-14 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-inner">
               <Lock className="h-7 w-7 stroke-[2.2]" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-900 tracking-tight">CashFlow Guard</h1>
-              <p className="text-xs text-slate-500 font-medium">Personal Financial Vault Protected</p>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">CashFlow Guard</h1>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">Personal Financial Vault • Sign In</p>
             </div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
+              <label className="text-[11px] font-bold text-slate-600 block mb-1">Username</label>
               <div className="relative flex items-center">
+                <div className="absolute left-3.5 text-slate-400">
+                  <User className="h-4 w-4" />
+                </div>
                 <input
-                  type={showPinText ? 'text' : 'password'}
+                  type="text"
                   required
-                  autoFocus
-                  inputMode="numeric"
-                  placeholder="Enter 4-Digit PIN / Password"
-                  value={authPin}
+                  placeholder="Username"
+                  value={authUsername}
                   onChange={e => {
-                    setAuthPin(e.target.value);
+                    setAuthUsername(e.target.value);
                     if (authError) setAuthError('');
                   }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-center text-lg font-bold tracking-widest text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 block mb-1">Password</label>
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 text-slate-400">
+                  <Lock className="h-4 w-4" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Password"
+                  value={authPassword}
+                  onChange={e => {
+                    setAuthPassword(e.target.value);
+                    if (authError) setAuthError('');
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-10 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPinText(!showPinText)}
+                  onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 text-slate-400 hover:text-slate-600 p-1"
                 >
-                  {showPinText ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
 
               {authError && (
-                <div className="mt-2 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl py-1.5 px-3">
+                <div className="mt-2 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl py-1.5 px-3 text-center">
                   {authError}
                 </div>
               )}
             </div>
 
-            {/* Quick Numeric Keypad for Mobile Screen */}
-            <div className="grid grid-cols-3 gap-2">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => {
-                    setAuthPin(prev => (prev.length < 10 ? prev + num : prev));
-                    if (authError) setAuthError('');
-                  }}
-                  className="py-3 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-800 font-bold text-base rounded-2xl border border-slate-200/80 transition shadow-2xs"
-                >
-                  {num}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setAuthPin('')}
-                className="py-3 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-500 font-bold text-xs rounded-2xl border border-slate-200 transition"
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthPin(prev => (prev.length < 10 ? prev + '0' : prev));
-                  if (authError) setAuthError('');
-                }}
-                className="py-3 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-800 font-bold text-base rounded-2xl border border-slate-200/80 transition shadow-2xs"
-              >
-                0
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthPin(prev => prev.slice(0, -1))}
-                className="py-3 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 font-bold text-sm rounded-2xl border border-slate-200 transition"
-              >
-                ⌫
-              </button>
-            </div>
-
             <button
               type="submit"
               disabled={authLoading}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold py-3 rounded-2xl text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold py-3 rounded-xl text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2 mt-2 cursor-pointer"
             >
               {authLoading ? (
                 <RefreshCw className="h-4 w-4 animate-spin" />
               ) : (
                 <>
                   <Unlock className="h-4 w-4" />
-                  <span>Unlock Dashboard</span>
+                  <span>Sign In to Dashboard</span>
                 </>
               )}
             </button>
           </form>
 
-          <div className="pt-1 border-t border-slate-100 text-[11px] text-slate-400">
-            <span className="font-semibold text-slate-600">Default PIN:</span> <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-bold">2026</code>
-            <p className="mt-0.5 text-[10px] text-slate-400">Vercel Environment Variables mein <code className="font-mono">APP_PIN</code> se change kar sakte hain.</p>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 text-center">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            <span>End-to-End Encrypted Session</span>
           </div>
         </div>
       </div>
