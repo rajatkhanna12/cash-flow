@@ -52,7 +52,8 @@ const EXPLICIT_SELF_TRANSFER_PHRASES = [
 export function parseBankSMS(
   rawText: string,
   defaultDate = new Date(),
-  myAccounts: string[] = []
+  myAccounts: string[] = [],
+  excludedAccounts: string[] = ['902', 'xx902']
 ): SMSParseResult {
   if (!rawText || typeof rawText !== 'string' || rawText.trim().length === 0) {
     return { success: false, confidence: 0, error: 'Empty SMS text provided' };
@@ -60,6 +61,33 @@ export function parseBankSMS(
 
   const text = rawText.trim();
   const lower = text.toLowerCase();
+
+  // 0. Account / Card number & Business Account Exclusion Check
+  let account = 'Bank Account';
+  const accountRegex = /(?:card|a\/c|acct|account)\s*(?:no\.?)?\s*([xX*]*\d{3,5})/i;
+  const accMatch = text.match(accountRegex);
+  if (accMatch && accMatch[1]) {
+    account = text.toLowerCase().includes('card') ? `Card ${accMatch[1]}` : `A/C ${accMatch[1]}`;
+  }
+
+  // 🛡️ Company / Business Account Exclusion (e.g. Current A/C XX902)
+  const allExcluded = ['902', 'xx902', ...excludedAccounts.map(a => a.toLowerCase().trim())];
+  const isExcluded = allExcluded.some(ex => {
+    const cleanEx = ex.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const cleanAcc = account.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const cleanText = text.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    return cleanAcc.endsWith(cleanEx) || cleanText.includes(`xx${cleanEx}`) || cleanText.includes(`accountxx${cleanEx}`) || cleanText.includes(`acctxx${cleanEx}`);
+  });
+
+  if (isExcluded) {
+    return {
+      success: false,
+      ignored: true,
+      confidence: 1,
+      account,
+      error: 'Company / Business Current Account (XX902) excluded from personal cash flow'
+    };
+  }
 
   // 1. Detect if it's a CREDIT (Money Coming In) vs DEBIT (Money Going Out)
   let isCredit = false;
@@ -187,7 +215,9 @@ export function parseBankSMS(
     : 'Direct Payment';
   
   if (!isSelfTransfer) {
+    const textWithoutSecurity = text.replace(/(?:SMS BLOCK|Call \d+).*$/i, '').trim();
     const merchantPatterns = [
+      /;\s*([*A-Za-z0-9._\- ]+?)\s+credited/i,
       /(?:to|at|towards)\s+(?:vpa\s+)?([*A-Za-z0-9._@\- ]+?)(?:\s+by|\s+on|\s+ref|\s+upi|\s+dated|\s+bal|\s+not you|\.|\n|$)/i,
       /info[:\s]+([*A-Za-z0-9._@\- ]+?)(?:\s+avbl|\s+bal|\.|\n|$)/i,
       /beneficiary[:\s]+([*A-Za-z0-9._@\- ]+?)(?:\s+on|\.|\n|$)/i,
@@ -197,7 +227,7 @@ export function parseBankSMS(
     ];
 
     for (const regex of merchantPatterns) {
-      const m = text.match(regex);
+      const m = textWithoutSecurity.match(regex);
       if (m && m[1]) {
         let candidate = m[1].trim();
         candidate = candidate.replace(/[.*]+$/, '').trim();
@@ -219,13 +249,6 @@ export function parseBankSMS(
     }
   }
 
-  // 6. Account / Card number
-  let account = 'Bank Account';
-  const accountRegex = /(?:card|a\/c|acct|account)\s*(?:no\.?)?\s*([xX*]*\d{3,5})/i;
-  const accMatch = text.match(accountRegex);
-  if (accMatch && accMatch[1]) {
-    account = text.toLowerCase().includes('card') ? `Card ${accMatch[1]}` : `A/C ${accMatch[1]}`;
-  }
 
   // 7. Reference number
   let reference: string | undefined = undefined;

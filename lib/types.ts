@@ -28,6 +28,7 @@ export interface CategoryBudget {
 
 export interface SMSParseResult {
   success: boolean;
+  ignored?: boolean;
   amount?: number;
   type?: TransactionType;
   category?: string;

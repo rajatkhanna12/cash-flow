@@ -51,6 +51,20 @@ export async function POST(req: NextRequest) {
 
     // 4. Extract financial details using parser with user's own accounts
     const parsed = parseBankSMS(rawText, receivedAt, myAccountIdentifiers);
+
+    // 4b. Ignore Business / Company Current Account transactions (e.g. XX902)
+    if (parsed.ignored) {
+      return NextResponse.json(
+        {
+          success: true,
+          status: 'ignored_company_account',
+          message: 'Company Current Account transaction (XX902) ignored from personal cash flow',
+          account: parsed.account
+        },
+        { status: 200 }
+      );
+    }
+
     if (!parsed.success || !parsed.amount) {
       return NextResponse.json(
         {
