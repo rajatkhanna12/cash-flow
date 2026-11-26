@@ -26,7 +26,8 @@ import {
   CalendarRange,
   ArrowLeftRight,
   CreditCard,
-  Building2
+  Building2,
+  LayoutDashboard
 } from 'lucide-react';
 import { Transaction, CashFlowStats, CategoryBudget, ReportingPeriod, MyAccount } from '@/lib/types';
 
@@ -40,8 +41,8 @@ const SAMPLE_SMS_TEMPLATES = [
     text: 'INR 10,000.00 debited from A/C **1234 on 26-Nov-26 transfer to own a/c linked to VPA rajat@oksbi. UPI Ref 433156789123.'
   },
   {
-    label: 'Salary Credit',
-    text: 'HDFC Bank: Rs 85,000.00 credited to a/c **1234 on 01-Nov-26 by a/c linked to VPA employer@upi. Ref 433198711002.'
+    label: 'Salary Credit (Client)',
+    text: 'HDFC Bank: Rs 85,000.00 credited to a/c **1234 on 01-Nov-26 by a/c linked to VPA client@upi. Ref 433198711002.'
   },
   {
     label: 'Blinkit (Debit)',
@@ -145,7 +146,6 @@ export default function CashFlowApp() {
     fetchData('custom', customFromDate, customToDate);
   };
 
-  // Add Dynamic Account / UPI ID
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAccIdentifier.trim()) return;
@@ -171,7 +171,6 @@ export default function CashFlowApp() {
     }
   };
 
-  // Delete Account
   const handleDeleteAccount = async (id: string) => {
     if (!confirm('Yeh account/UPI ID delete karein?')) return;
     try {
@@ -182,7 +181,6 @@ export default function CashFlowApp() {
     }
   };
 
-  // 1-Tap Toggle between Transfer and Outflow
   const handleToggleTransfer = async (tx: Transaction) => {
     const isNowTransfer = tx.type !== 'transfer';
     try {
@@ -295,29 +293,90 @@ export default function CashFlowApp() {
   const savingsPercentage = 100 - expensePercentage;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans pb-24">
-      {/* 📱 TOP APP BAR */}
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans pb-24 md:pb-10">
+      {/* 🌐 RESPONSIVE APP HEADER */}
       <header className="bg-white border-b border-slate-200/90 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-xs">
-              <Wallet className="h-4 w-4" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          {/* Logo & Branding */}
+          <div className="flex items-center space-x-3">
+            <div className="h-9 w-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-xs">
+              <Wallet className="h-5 w-5" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="font-bold text-slate-900 text-sm tracking-tight">CashFlow Guard</h1>
-                <span className="text-[9px] font-semibold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded-full border border-emerald-200">
+              <div className="flex items-center gap-2">
+                <h1 className="font-bold text-slate-900 text-sm sm:text-base tracking-tight">CashFlow Guard</h1>
+                <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
                   Live
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400">Reporting & Self-Transfers</p>
+              <p className="text-[11px] text-slate-400 hidden sm:block">Automated Cash Flow & Expense Guardrails</p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-1.5">
+          {/* DESKTOP TOP NAV TABS (HIDDEN ON MOBILE, VISIBLE ON MD+) */}
+          <nav className="hidden md:flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+            <button
+              onClick={() => setActiveTab('flow')}
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                activeTab === 'flow'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Wallet className="h-3.5 w-3.5 text-emerald-600" />
+              Cash Flow
+            </button>
+            <button
+              onClick={() => setActiveTab('accounts')}
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                activeTab === 'accounts'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <CreditCard className="h-3.5 w-3.5 text-sky-600" />
+              My UPI & Accounts
+            </button>
+            <button
+              onClick={() => setActiveTab('budgets')}
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                activeTab === 'budgets'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ShieldAlert className="h-3.5 w-3.5 text-rose-500" />
+              Budget Limits
+            </button>
+            <button
+              onClick={() => setActiveTab('simulator')}
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                activeTab === 'simulator'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+              SMS Tester
+            </button>
+            <button
+              onClick={() => setActiveTab('iphone-setup')}
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 ${
+                activeTab === 'iphone-setup'
+                  ? 'bg-white text-slate-900 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Smartphone className="h-3.5 w-3.5 text-sky-600" />
+              iPhone Setup
+            </button>
+          </nav>
+
+          {/* Actions */}
+          <div className="flex items-center space-x-2">
             <button
               onClick={() => setShowAddModal(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 shadow-xs transition"
+              className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition"
             >
               <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
               <span>Naya Add</span>
@@ -325,19 +384,19 @@ export default function CashFlowApp() {
             <button
               onClick={() => fetchData(selectedPeriod, customFromDate, customToDate)}
               title="Refresh"
-              className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 active:scale-95 transition"
+              className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 active:scale-95 transition"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-emerald-600' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-emerald-600' : ''}`} />
             </button>
           </div>
         </div>
 
-        {/* ⏱️ FILTERS: Today, This Week, Current Month, Custom Date */}
-        <div className="max-w-lg mx-auto px-3 py-2 border-t border-slate-100 space-y-2">
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+        {/* ⏱️ FILTERS BAR (RESPONSIVE) */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full md:w-auto">
             <button
               onClick={() => handlePeriodChange('today')}
-              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center whitespace-nowrap ${
+              className={`py-1.5 px-3 rounded-xl text-xs font-bold transition text-center whitespace-nowrap ${
                 selectedPeriod === 'today'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -348,7 +407,7 @@ export default function CashFlowApp() {
 
             <button
               onClick={() => handlePeriodChange('week')}
-              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center whitespace-nowrap ${
+              className={`py-1.5 px-3 rounded-xl text-xs font-bold transition text-center whitespace-nowrap ${
                 selectedPeriod === 'week'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -359,7 +418,7 @@ export default function CashFlowApp() {
 
             <button
               onClick={() => handlePeriodChange('month')}
-              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center whitespace-nowrap ${
+              className={`py-1.5 px-3 rounded-xl text-xs font-bold transition text-center whitespace-nowrap ${
                 selectedPeriod === 'month'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -370,297 +429,405 @@ export default function CashFlowApp() {
 
             <button
               onClick={() => handlePeriodChange('custom')}
-              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-center whitespace-nowrap flex items-center justify-center gap-1 ${
+              className={`py-1.5 px-3 rounded-xl text-xs font-bold transition text-center whitespace-nowrap flex items-center justify-center gap-1.5 ${
                 selectedPeriod === 'custom'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              <CalendarRange className="h-3 w-3" />
+              <CalendarRange className="h-3.5 w-3.5" />
               Custom Date
             </button>
           </div>
 
-          {/* 📅 CUSTOM DATE RANGE EXPANDABLE */}
-          {selectedPeriod === 'custom' && (
-            <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 space-y-2 animate-in fade-in duration-200">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">
-                    From Date
-                  </label>
-                  <input
-                    type="date"
-                    value={customFromDate}
-                    onChange={e => setCustomFromDate(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase text-slate-500 block mb-0.5">
-                    To Date
-                  </label>
-                  <input
-                    type="date"
-                    value={customToDate}
-                    onChange={e => setCustomToDate(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-xs"
-                  />
-                </div>
+          {/* ACTIVE STATUS PILL */}
+          <div className="flex items-center justify-between md:justify-end gap-3 text-xs text-slate-500">
+            <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-emerald-600" />
+              <span>{stats?.periodLabel}</span>
+            </span>
+            <span className="text-[11px] bg-slate-100 px-2.5 py-0.5 rounded-lg font-bold text-slate-700 border border-slate-200">
+              {stats?.transactionCount || 0} Transactions
+            </span>
+          </div>
+        </div>
+
+        {/* 📅 CUSTOM DATE RANGE EXPANDABLE ROW */}
+        {selectedPeriod === 'custom' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 border-t border-slate-100">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col md:flex-row md:items-center gap-3">
+              <div className="flex items-center gap-2 flex-1">
+                <span className="text-xs font-bold text-slate-600 whitespace-nowrap">From:</span>
+                <input
+                  type="date"
+                  value={customFromDate}
+                  onChange={e => setCustomFromDate(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-xs flex-1 md:w-44"
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-1">
+                <span className="text-xs font-bold text-slate-600 whitespace-nowrap">To:</span>
+                <input
+                  type="date"
+                  value={customToDate}
+                  onChange={e => setCustomToDate(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-xs flex-1 md:w-44"
+                />
               </div>
               <button
                 onClick={handleApplyCustomDates}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white py-1.5 rounded-lg text-xs font-bold shadow-xs transition"
+                className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2 rounded-lg text-xs font-bold shadow-xs transition"
               >
-                Apply Date Range
+                Apply Range
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </header>
 
-      {/* 📱 MAIN VIEW */}
-      <main className="max-w-lg mx-auto px-4 py-3 w-full space-y-4 flex-1">
-        {/* ACTIVE TIMEFRAME STATUS PILL */}
-        <div className="flex items-center justify-between text-xs text-slate-500 bg-white/70 px-3 py-1.5 rounded-xl border border-slate-200/60">
-          <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-emerald-600" />
-            <span>Filter: {stats?.periodLabel}</span>
-          </span>
-          <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-md font-bold text-slate-600">
-            {stats?.transactionCount || 0} Transactions
-          </span>
-        </div>
-
-        {/* OVERSPENDING ALERT (CURRENT MONTH) */}
+      {/* 📱 / 💻 MAIN CONTENT CONTAINER (RESPONSIVE: MOBILE MAX-W-LG, DESKTOP MAX-W-7XL) */}
+      <main className="max-w-lg lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 w-full space-y-6 flex-1">
+        {/* OVERSPENDING WARNING ALERT BANNER */}
         {selectedPeriod === 'month' && stats && stats.alerts.length > 0 && (
-          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 shadow-xs space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <AlertTriangle className="h-4 w-4 text-rose-600 flex-shrink-0" />
-                <h3 className="text-xs font-bold text-rose-900">
-                  Kharch Warning: {stats.alerts.length} Limit Cross Hui!
-                </h3>
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-start md:items-center space-x-3">
+              <div className="p-2 rounded-xl bg-rose-100 text-rose-600 flex-shrink-0">
+                <AlertTriangle className="h-5 w-5" />
               </div>
-              <button
-                onClick={() => setActiveTab('budgets')}
-                className="text-[11px] font-bold text-rose-700 underline"
-              >
-                Limits Set Karein →
-              </button>
+              <div>
+                <h3 className="text-sm font-bold text-rose-900">
+                  Dhyan dein! {stats.alerts.length} Categories mein budget limit cross hui hai:
+                </h3>
+                <p className="text-xs text-rose-700 mt-0.5">
+                  {stats.alerts
+                    .map(a => `${a.category} (${a.percentage}% used — ₹${a.spent} of ₹${a.limit})`)
+                    .join(' • ')}
+                </p>
+              </div>
             </div>
-            <div className="space-y-1">
-              {stats.alerts.map(a => (
-                <div key={a.category} className="flex justify-between items-center text-[11px] text-rose-800 bg-white/80 px-2 py-1 rounded-md border border-rose-100">
-                  <span className="font-semibold">{a.category}</span>
-                  <span>{a.percentage}% used ({formatCurrency(a.spent)} / {formatCurrency(a.limit)})</span>
-                </div>
-              ))}
-            </div>
+            <button
+              onClick={() => setActiveTab('budgets')}
+              className="text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 rounded-xl transition self-start md:self-auto shadow-xs whitespace-nowrap"
+            >
+              Limits Set Karein →
+            </button>
           </div>
         )}
 
         {/* 📊 TAB 1: FLOW (HOME) */}
         {activeTab === 'flow' && (
-          <div className="space-y-4">
-            {/* HERO CASH FLOW CARD FOR CHOSEN FILTER */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3.5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Net Cash Flow ({stats?.periodLabel})
+          <div className="space-y-6">
+            {/* 🌐 DESKTOP & MOBILE RESPONSIVE KPI CARDS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Card 1: Net Cash Flow */}
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Net Bacha (Savings)
                   </span>
-                  <div className={`text-2xl font-extrabold tracking-tight mt-0.5 ${net >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  <div className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                    net >= 0 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
+                  }`}>
+                    {savingsPercentage}% Bachat
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <div className={`text-2xl lg:text-3xl font-extrabold tracking-tight ${net >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                     {stats ? formatCurrency(stats.netCashFlow) : '₹0'}
                   </div>
+                  <p className="text-xs text-slate-500 mt-1">Inflow minus outflow</p>
                 </div>
-                <div className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
-                  net >= 0 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
-                }`}>
-                  {savingsPercentage}% Bachat
+                {/* Visual Ratio Bar */}
+                <div className="mt-4 space-y-1">
+                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/60">
+                    <div
+                      className="bg-rose-500 h-full transition-all duration-500"
+                      style={{ width: `${expensePercentage}%` }}
+                    />
+                    <div
+                      className="bg-emerald-500 h-full transition-all duration-500"
+                      style={{ width: `${Math.max(0, savingsPercentage)}%` }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* AAYA vs GAYA 2-COLUMN SPLIT */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="bg-emerald-50/70 border border-emerald-200/70 rounded-xl p-2.5">
-                  <div className="flex items-center justify-between text-emerald-800">
-                    <span className="text-[10px] font-bold uppercase tracking-wider">Kul Aaya (Inflow)</span>
-                    <ArrowUpRight className="h-3.5 w-3.5" />
+              {/* Card 2: Kul Aaya (Inflow) */}
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Kul Aaya (Inflow)
+                  </span>
+                  <div className="h-8 w-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                    <ArrowUpRight className="h-4 w-4" />
                   </div>
-                  <div className="text-base font-extrabold text-emerald-950 mt-1">
+                </div>
+                <div className="mt-3">
+                  <div className="text-2xl lg:text-3xl font-extrabold text-emerald-950 tracking-tight">
                     {stats ? formatCurrency(stats.totalInflow) : '₹0'}
                   </div>
-                  <p className="text-[10px] text-emerald-700 mt-0.5">Real Income</p>
+                  <p className="text-xs text-emerald-700 mt-1">Salary & client credits</p>
                 </div>
-
-                <div className="bg-rose-50/70 border border-rose-200/70 rounded-xl p-2.5">
-                  <div className="flex items-center justify-between text-rose-800">
-                    <span className="text-[10px] font-bold uppercase tracking-wider">Kul Gaya (Outflow)</span>
-                    <ArrowDownRight className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="text-base font-extrabold text-rose-950 mt-1">
-                    {stats ? formatCurrency(stats.totalOutflow) : '₹0'}
-                  </div>
-                  <p className="text-[10px] text-rose-700 mt-0.5">{expensePercentage}% of income</p>
+                <div className="mt-4 text-[11px] text-slate-400 font-medium">
+                  {stats?.periodLabel}
                 </div>
               </div>
 
-              {/* 🛡️ SELF-TRANSFERS STATS CALLOUT (EXCLUDED FROM EXPENSE) */}
-              {transfers > 0 && (
-                <div className="bg-sky-50/80 border border-sky-200/80 rounded-xl p-2.5 flex items-center justify-between text-xs text-sky-900">
-                  <div className="flex items-center space-x-2">
-                    <ArrowLeftRight className="h-4 w-4 text-sky-600 flex-shrink-0" />
-                    <div>
-                      <span className="font-bold">Self Account Transfers: {formatCurrency(transfers)}</span>
-                      <p className="text-[10px] text-sky-700">Aapke accounts ke beech move hua (Zero expense)</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold bg-white text-sky-800 px-2 py-0.5 rounded-full border border-sky-200">
-                    Safe
+              {/* Card 3: Kul Gaya (Outflow) */}
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Kul Gaya (Outflow)
                   </span>
+                  <div className="h-8 w-8 rounded-xl bg-rose-100 text-rose-800 flex items-center justify-center">
+                    <ArrowDownRight className="h-4 w-4" />
+                  </div>
                 </div>
-              )}
+                <div className="mt-3">
+                  <div className="text-2xl lg:text-3xl font-extrabold text-rose-950 tracking-tight">
+                    {stats ? formatCurrency(stats.totalOutflow) : '₹0'}
+                  </div>
+                  <p className="text-xs text-rose-700 mt-1">{expensePercentage}% of income spent</p>
+                </div>
+                <div className="mt-4 text-[11px] text-slate-400 font-medium">
+                  Daily Burn: <strong className="text-slate-700">{stats ? formatCurrency(stats.dailyBurnRate) : '₹0'}/day</strong>
+                </div>
+              </div>
 
-              {/* FLOW PROPORTION BAR */}
-              <div className="space-y-1.5 pt-1">
-                <div className="flex justify-between text-[11px] font-semibold text-slate-500">
-                  <span className="text-rose-600">Kharch: {expensePercentage}% ({formatCurrency(outflow)})</span>
-                  <span className="text-emerald-700">Bachat: {savingsPercentage}% ({formatCurrency(net)})</span>
+              {/* Card 4: Self Transfers & Run Rate */}
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Self Transfers
+                  </span>
+                  <div className="h-8 w-8 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center">
+                    <ArrowLeftRight className="h-4 w-4" />
+                  </div>
                 </div>
-                <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden flex border border-slate-200/80">
-                  <div
-                    className="bg-rose-500 h-full transition-all duration-500"
-                    style={{ width: `${expensePercentage}%` }}
-                  />
-                  <div
-                    className="bg-emerald-500 h-full transition-all duration-500"
-                    style={{ width: `${Math.max(0, savingsPercentage)}%` }}
-                  />
+                <div className="mt-3">
+                  <div className="text-2xl lg:text-3xl font-extrabold text-sky-950 tracking-tight">
+                    {formatCurrency(transfers)}
+                  </div>
+                  <p className="text-xs text-sky-700 mt-1">Zero Expense (Between Own A/C)</p>
+                </div>
+                <div className="mt-4 text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Whitelisted accounts safe
                 </div>
               </div>
             </div>
 
-            {/* TRANSACTIONS FILTERED BY TIME PERIOD */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <div>
-                  <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Transactions List
-                  </h2>
-                  <p className="text-[10px] text-slate-400">{stats?.periodLabel}</p>
+            {/* 🌐 MAIN 2-COLUMN DESKTOP SPLIT / 1-COLUMN MOBILE */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column (1/3 on desktop): Category Spending & Budgets */}
+              <div className="space-y-6">
+                {/* Category Budgets Card */}
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                      <PieChart className="h-4 w-4 text-emerald-600" />
+                      Category Budgets & Limits
+                    </span>
+                    <button
+                      onClick={() => setActiveTab('budgets')}
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+                    >
+                      Edit Limits →
+                    </button>
+                  </div>
+
+                  <div className="space-y-3.5">
+                    {budgets.map(b => {
+                      const spent = stats?.categorySpending[b.category] || 0;
+                      const percent = Math.min(100, Math.round((spent / b.monthly_limit) * 100));
+                      const isExceeded = spent > b.monthly_limit;
+                      const isWarning = percent >= 80 && !isExceeded;
+
+                      return (
+                        <div key={b.category} className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-semibold text-slate-800">{b.category}</span>
+                            <span className="text-[11px] text-slate-500">
+                              <strong className={isExceeded ? 'text-rose-600' : isWarning ? 'text-amber-600' : 'text-slate-900'}>
+                                {formatCurrency(spent)}
+                              </strong>{' '}
+                              / {formatCurrency(b.monthly_limit)}
+                            </span>
+                          </div>
+                          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                isExceeded ? 'bg-rose-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'
+                              }`}
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-semibold">
-                  <button
-                    onClick={() => setFilterType('all')}
-                    className={`px-1.5 py-0.5 rounded-md transition ${filterType === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setFilterType('inflow')}
-                    className={`px-1.5 py-0.5 rounded-md transition ${filterType === 'inflow' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500'}`}
-                  >
-                    Aaya
-                  </button>
-                  <button
-                    onClick={() => setFilterType('outflow')}
-                    className={`px-1.5 py-0.5 rounded-md transition ${filterType === 'outflow' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-500'}`}
-                  >
-                    Gaya
-                  </button>
-                  <button
-                    onClick={() => setFilterType('transfer')}
-                    className={`px-1.5 py-0.5 rounded-md transition ${filterType === 'transfer' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-500'}`}
-                  >
-                    Transfer
-                  </button>
+                {/* Quick My Accounts Preview */}
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <CreditCard className="h-4 w-4 text-sky-600" />
+                      My Whitelisted UPI/A/C ({myAccounts.length})
+                    </span>
+                    <button
+                      onClick={() => setActiveTab('accounts')}
+                      className="text-xs font-semibold text-sky-600 hover:text-sky-700"
+                    >
+                      Manage →
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {myAccounts.slice(0, 3).map(acc => (
+                      <div key={acc.id} className="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                        <span className="font-semibold text-slate-800">{acc.name}</span>
+                        <span className="text-[11px] font-mono text-slate-500">{acc.identifier}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div className="divide-y divide-slate-100">
-                {filteredTransactions.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-slate-400">
-                    Is selected dates mein koi transaction nahi mila.
+              {/* Right Column (2/3 on desktop): Full Transactions Feed */}
+              <div className="lg:col-span-2 bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4 flex flex-col">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div>
+                    <h2 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider">
+                      Transactions History
+                    </h2>
+                    <p className="text-xs text-slate-500">Auto-detected SMS & UPI records for {stats?.periodLabel}</p>
                   </div>
-                ) : (
-                  filteredTransactions.map(tx => (
-                    <div key={tx.id} className="py-2.5 flex items-center justify-between gap-2">
-                      <div className="flex items-center space-x-2.5 min-w-0">
-                        <div
-                          className={`h-8 w-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                            tx.type === 'transfer'
-                              ? 'bg-sky-100 text-sky-800'
-                              : tx.type === 'inflow'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-rose-100 text-rose-800'
-                          }`}
-                        >
-                          {tx.type === 'transfer' ? (
-                            <ArrowLeftRight className="h-4 w-4" />
-                          ) : tx.type === 'inflow' ? (
-                            <ArrowUpRight className="h-4 w-4" />
-                          ) : (
-                            <ArrowDownRight className="h-4 w-4" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-xs font-bold text-slate-900 truncate">
-                              {tx.merchant}
-                            </p>
-                            {tx.type === 'transfer' && (
-                              <span className="text-[9px] bg-sky-100 text-sky-800 font-bold px-1.5 py-0.2 rounded">
-                                Self Transfer
-                              </span>
+
+                  {/* Search and Filters */}
+                  <div className="flex items-center space-x-2">
+                    <div className="relative">
+                      <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 w-32 sm:w-44"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold">
+                      <button
+                        onClick={() => setFilterType('all')}
+                        className={`px-2 py-1 rounded-md transition ${filterType === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
+                      >
+                        All
+                      </button>
+                      <button
+                        onClick={() => setFilterType('inflow')}
+                        className={`px-2 py-1 rounded-md transition ${filterType === 'inflow' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500'}`}
+                      >
+                        Aaya
+                      </button>
+                      <button
+                        onClick={() => setFilterType('outflow')}
+                        className={`px-2 py-1 rounded-md transition ${filterType === 'outflow' ? 'bg-white text-rose-700 shadow-xs' : 'text-slate-500'}`}
+                      >
+                        Gaya
+                      </button>
+                      <button
+                        onClick={() => setFilterType('transfer')}
+                        className={`px-2 py-1 rounded-md transition ${filterType === 'transfer' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-500'}`}
+                      >
+                        Transfer
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Transactions Table / List */}
+                <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-[560px] pr-1">
+                  {filteredTransactions.length === 0 ? (
+                    <div className="text-center py-16 text-xs text-slate-400">
+                      Is selected filter mein koi transaction nahi mila.
+                    </div>
+                  ) : (
+                    filteredTransactions.map(tx => (
+                      <div key={tx.id} className="py-3 flex items-center justify-between gap-3 hover:bg-slate-50/70 px-2 rounded-xl transition">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div
+                            className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                              tx.type === 'transfer'
+                                ? 'bg-sky-100 text-sky-800'
+                                : tx.type === 'inflow'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {tx.type === 'transfer' ? (
+                              <ArrowLeftRight className="h-4 w-4" />
+                            ) : tx.type === 'inflow' ? (
+                              <ArrowUpRight className="h-4 w-4" />
+                            ) : (
+                              <ArrowDownRight className="h-4 w-4" />
                             )}
                           </div>
-                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
-                            <span className="text-slate-600 font-medium">{tx.category}</span>
-                            <span>•</span>
-                            <span>{new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                                {tx.merchant}
+                              </p>
+                              {tx.type === 'transfer' && (
+                                <span className="text-[10px] bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full">
+                                  Self Transfer
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 flex-wrap">
+                              <span className="text-slate-700 font-medium">{tx.category}</span>
+                              {tx.account && <span>• {tx.account}</span>}
+                              <span>• {new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center space-x-1.5 flex-shrink-0">
-                        <span
-                          className={`text-xs font-bold ${
-                            tx.type === 'transfer'
-                              ? 'text-sky-700'
-                              : tx.type === 'inflow'
-                              ? 'text-emerald-700'
-                              : 'text-slate-900'
-                          }`}
-                        >
-                          {tx.type === 'transfer' ? '⇄ ' : tx.type === 'inflow' ? '+' : '-'} {formatCurrency(tx.amount)}
-                        </span>
-                        
-                        {/* 1-Tap Toggle between Expense & Transfer */}
-                        <button
-                          onClick={() => handleToggleTransfer(tx)}
-                          title={tx.type === 'transfer' ? 'Convert to Expense' : 'Mark as Self-Transfer (Exclude)'}
-                          className={`p-1 rounded-md text-[10px] border transition ${
-                            tx.type === 'transfer'
-                              ? 'bg-sky-50 text-sky-700 border-sky-200'
-                              : 'bg-slate-50 text-slate-400 hover:text-slate-700 border-slate-200'
-                          }`}
-                        >
-                          <ArrowLeftRight className="h-3 w-3" />
-                        </button>
+                        <div className="flex items-center space-x-2 flex-shrink-0">
+                          <span
+                            className={`text-xs sm:text-sm font-bold tracking-tight ${
+                              tx.type === 'transfer'
+                                ? 'text-sky-700'
+                                : tx.type === 'inflow'
+                                ? 'text-emerald-700'
+                                : 'text-slate-900'
+                            }`}
+                          >
+                            {tx.type === 'transfer' ? '⇄ ' : tx.type === 'inflow' ? '+' : '-'} {formatCurrency(tx.amount)}
+                          </span>
 
-                        <button
-                          onClick={() => handleDeleteTx(tx.id)}
-                          className="text-slate-300 hover:text-rose-600 p-1"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
+                          {/* 1-Tap Toggle between Expense & Transfer */}
+                          <button
+                            onClick={() => handleToggleTransfer(tx)}
+                            title={tx.type === 'transfer' ? 'Convert to Expense' : 'Mark as Self-Transfer (Exclude from Expense)'}
+                            className={`p-1.5 rounded-lg text-xs border transition ${
+                              tx.type === 'transfer'
+                                ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                : 'bg-slate-50 text-slate-400 hover:text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            <ArrowLeftRight className="h-3.5 w-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteTx(tx.id)}
+                            className="text-slate-300 hover:text-rose-600 p-1.5"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -668,77 +835,77 @@ export default function CashFlowApp() {
 
         {/* 💳 TAB 2: MY ACCOUNTS & UPI (DYNAMIC SELF-TRANSFER SETUP) */}
         {activeTab === 'accounts' && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
-            <div className="border-b border-slate-100 pb-2.5">
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <CreditCard className="h-4 w-4 text-emerald-600" />
-                My Bank Accounts & UPI IDs (Self-Transfer)
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-6">
+            <div className="border-b border-slate-100 pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-emerald-600" />
+                My Bank Accounts & UPI IDs (Self-Transfer Whitelist)
               </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Yahan apne saare Bank A/C numbers ya UPI IDs add kar dein. Jab bhi aap in accounts ke beech paise bhejenge, system <strong>100% automatically</strong> usko Self-Transfer pehchanega aur <strong>kharch mein count nahi karega!</strong>
+              <p className="text-xs text-slate-500 mt-1">
+                Yahan apne saare personal Bank A/C numbers ya UPI IDs add kar dein. Jab bhi aap in accounts ke beech paise move karenge, system <strong>100% automatically</strong> usko Self-Transfer pehchanega aur <strong>kharch mein count nahi karega!</strong>
               </p>
             </div>
 
-            {/* Add New UPI/Account Form */}
-            <form onSubmit={handleAddAccount} className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5">
-              <span className="text-[11px] font-bold text-slate-800 block">Naya Account / UPI ID Add Karein:</span>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Add Account Form */}
+              <form onSubmit={handleAddAccount} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                <span className="text-xs font-bold text-slate-800 block">Naya Account / UPI ID Add Karein:</span>
                 <div>
-                  <label className="text-[10px] text-slate-500 font-semibold block mb-0.5">Account Ka Naam</label>
+                  <label className="text-[11px] text-slate-500 font-semibold block mb-1">Account Ka Naam</label>
                   <input
                     type="text"
-                    placeholder="e.g. HDFC Salary, SBI"
+                    placeholder="e.g. HDFC Primary, SBI Savings"
                     value={newAccName}
                     onChange={e => setNewAccName(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-medium focus:outline-none focus:border-emerald-500 shadow-xs"
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-slate-900 font-medium focus:outline-none focus:border-emerald-500 shadow-xs"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-500 font-semibold block mb-0.5">UPI ID ya A/C Number</label>
+                  <label className="text-[11px] text-slate-500 font-semibold block mb-1">UPI ID ya A/C Number</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. rajat@okhdfcbank ya 1234"
                     value={newAccIdentifier}
                     onChange={e => setNewAccIdentifier(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-xs"
+                    className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-slate-900 font-semibold focus:outline-none focus:border-emerald-500 shadow-xs"
                   />
                 </div>
-              </div>
-              <button
-                type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded-lg text-xs shadow-xs transition"
-              >
-                + Add My Account
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs shadow-xs transition"
+                >
+                  + Add My Account
+                </button>
+              </form>
 
-            {/* List of currently active accounts */}
-            <div className="space-y-2">
-              <span className="text-xs font-bold text-slate-900">Active Whitelisted Accounts ({myAccounts.length}):</span>
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                {myAccounts.length === 0 ? (
-                  <p className="p-3 text-xs text-slate-400 text-center">Koi account add nahi hai.</p>
-                ) : (
-                  myAccounts.map(acc => (
-                    <div key={acc.id} className="p-2.5 flex items-center justify-between bg-white hover:bg-slate-50 text-xs">
-                      <div className="flex items-center space-x-2">
-                        <Building2 className="h-4 w-4 text-emerald-600" />
-                        <div>
-                          <span className="font-bold text-slate-900">{acc.name}</span>
-                          <span className="text-[10px] text-slate-500 font-mono block">{acc.identifier}</span>
+              {/* Whitelisted Accounts List */}
+              <div className="space-y-3">
+                <span className="text-xs font-bold text-slate-900">Active Whitelisted Accounts ({myAccounts.length}):</span>
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                  {myAccounts.length === 0 ? (
+                    <p className="p-4 text-xs text-slate-400 text-center">Koi account add nahi hai.</p>
+                  ) : (
+                    myAccounts.map(acc => (
+                      <div key={acc.id} className="p-3 flex items-center justify-between bg-white hover:bg-slate-50 text-xs">
+                        <div className="flex items-center space-x-3">
+                          <Building2 className="h-5 w-5 text-emerald-600" />
+                          <div>
+                            <span className="font-bold text-slate-900">{acc.name}</span>
+                            <span className="text-[11px] text-slate-500 font-mono block">{acc.identifier}</span>
+                          </div>
                         </div>
+                        <button
+                          onClick={() => handleDeleteAccount(acc.id)}
+                          className="text-slate-300 hover:text-rose-600 p-1.5"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleDeleteAccount(acc.id)}
-                        className="text-slate-300 hover:text-rose-600 p-1"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -746,34 +913,34 @@ export default function CashFlowApp() {
 
         {/* 🛡️ TAB 3: KHARCH CONTROL & BUDGETS */}
         {activeTab === 'budgets' && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
-            <div className="border-b border-slate-100 pb-2.5">
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <ShieldAlert className="h-4 w-4 text-emerald-600" />
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-5">
+            <div className="border-b border-slate-100 pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-emerald-600" />
                 Monthly Expense Limits (Targets)
               </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Har category ka monthly limit set karein. 80% reach hone par warning badge aayega.
+              <p className="text-xs text-slate-500 mt-1">
+                Har category ka monthly target set karein. 80% reach hone par system warning alert dega.
               </p>
             </div>
 
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {budgets.map((b, idx) => {
                 const spent = stats?.categorySpending[b.category] || 0;
                 const percent = Math.min(100, Math.round((spent / b.monthly_limit) * 100));
                 const isExceeded = spent > b.monthly_limit;
 
                 return (
-                  <div key={b.category} className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1.5">
+                  <div key={b.category} className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="text-xs font-bold text-slate-900">{b.category}</span>
-                        <p className="text-[10px] text-slate-500">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900">{b.category}</span>
+                        <p className="text-[11px] text-slate-500">
                           Kharch: <strong className={isExceeded ? 'text-rose-600' : 'text-slate-800'}>{formatCurrency(spent)}</strong> ({percent}%)
                         </p>
                       </div>
-                      <div className="flex items-center space-x-1">
-                        <span className="text-[11px] text-slate-400 font-semibold">₹</span>
+                      <div className="flex items-center space-x-1.5">
+                        <span className="text-xs text-slate-500 font-semibold">₹</span>
                         <input
                           type="number"
                           value={b.monthly_limit}
@@ -783,11 +950,11 @@ export default function CashFlowApp() {
                             updated[idx].monthly_limit = val;
                             setBudgets(updated);
                           }}
-                          className="w-20 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-500"
+                          className="w-24 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-500"
                         />
                       </div>
                     </div>
-                    <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                    <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
                           isExceeded ? 'bg-rose-500' : percent >= 80 ? 'bg-amber-500' : 'bg-emerald-500'
@@ -800,39 +967,41 @@ export default function CashFlowApp() {
               })}
             </div>
 
-            <button
-              onClick={async () => {
-                await fetch('/api/budgets', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ budgets })
-                });
-                await fetchData(selectedPeriod, customFromDate, customToDate);
-                alert('Limits successfully save ho gayi hain!');
-              }}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs transition"
-            >
-              Save All Limits
-            </button>
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={async () => {
+                  await fetch('/api/budgets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ budgets })
+                  });
+                  await fetchData(selectedPeriod, customFromDate, customToDate);
+                  alert('Limits successfully save ho gayi hain!');
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs sm:text-sm shadow-xs transition"
+              >
+                Save All Limits
+              </button>
+            </div>
           </div>
         )}
 
         {/* 🧪 TAB 4: SMS TESTER */}
         {activeTab === 'simulator' && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3.5">
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-5">
             <div>
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4 text-amber-500" />
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-amber-500" />
                 Bank SMS Parser Tester
               </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 mt-1">
                 Bank ya UPI SMS paste karke live test karein (Self Transfer bhi test kar sakte hain).
               </p>
             </div>
 
-            <div className="space-y-1">
-              <span className="text-[10px] text-slate-400 font-bold uppercase">Quick Samples:</span>
-              <div className="flex flex-wrap gap-1.5">
+            <div className="space-y-1.5">
+              <span className="text-xs text-slate-500 font-bold uppercase">Quick Samples:</span>
+              <div className="flex flex-wrap gap-2">
                 {SAMPLE_SMS_TEMPLATES.map((sample, idx) => (
                   <button
                     key={idx}
@@ -840,7 +1009,7 @@ export default function CashFlowApp() {
                       setSimulatorSMS(sample.text);
                       handleSimulate(sample.text);
                     }}
-                    className="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-[10px] text-slate-700 font-semibold border border-slate-200"
+                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs text-slate-700 font-semibold border border-slate-200"
                   >
                     {sample.label}
                   </button>
@@ -849,44 +1018,44 @@ export default function CashFlowApp() {
             </div>
 
             <textarea
-              rows={3}
+              rows={4}
               placeholder="Bank transaction SMS yahan paste karein..."
               value={simulatorSMS}
               onChange={e => setSimulatorSMS(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-mono"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-mono"
             />
 
             <button
               disabled={!simulatorSMS.trim() || simulating}
               onClick={() => handleSimulate(simulatorSMS)}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-xs"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold py-2.5 rounded-xl text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-xs"
             >
-              <Send className="h-3.5 w-3.5" />
+              <Send className="h-4 w-4" />
               <span>{simulating ? 'Analyzing...' : 'Parse & Add to Flow'}</span>
             </button>
 
             {simulatorResult && (
               <div
-                className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+                className={`p-4 rounded-xl border text-xs space-y-2 ${
                   simulatorResult.success
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                     : 'bg-rose-50 border-rose-200 text-rose-900'
                 }`}
               >
-                <div className="font-bold flex items-center gap-1 text-[11px]">
+                <div className="font-bold flex items-center gap-1.5 text-xs">
                   {simulatorResult.success ? (
                     <>
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      <span>Parsed & Added!</span>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <span>Parsed & Added Successfully!</span>
                     </>
                   ) : (
                     <>
-                      <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+                      <AlertTriangle className="h-4 w-4 text-rose-600" />
                       <span>Parse Error</span>
                     </>
                   )}
                 </div>
-                <pre className="p-2 bg-white rounded-lg text-slate-700 font-mono text-[10px] border border-slate-200 overflow-x-auto">
+                <pre className="p-3 bg-white rounded-lg text-slate-700 font-mono text-[11px] border border-slate-200 overflow-x-auto">
                   {JSON.stringify(simulatorResult, null, 2)}
                 </pre>
               </div>
@@ -896,42 +1065,42 @@ export default function CashFlowApp() {
 
         {/* 📱 TAB 5: IPHONE SETUP GUIDE */}
         {activeTab === 'iphone-setup' && (
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-4">
-            <div className="border-b border-slate-100 pb-2.5">
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Smartphone className="h-4 w-4 text-sky-600" />
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-5">
+            <div className="border-b border-slate-100 pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Smartphone className="h-5 w-5 text-sky-600" />
                 iPhone Shortcuts Automation Setup
               </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                2 minute mein setup karein taaki har SMS turant dashboard mein aa jaye.
+              <p className="text-xs text-slate-500 mt-1">
+                2 minute mein setup karein taaki har bank SMS aate hi background mein live sync ho jaye.
               </p>
             </div>
 
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-900">1. Shortcuts App kholiye</span>
-              <p className="text-[11px] text-slate-500">
-                <strong>Automation</strong> ➔ <strong>New Automation (+)</strong>
+            <div className="space-y-2">
+              <span className="text-sm font-bold text-slate-900">1. Shortcuts App kholiye</span>
+              <p className="text-xs text-slate-600">
+                iPhone par <strong>Shortcuts</strong> App kholiye ➔ <strong>Automation</strong> tab ➔ <strong>New Automation (+)</strong>
               </p>
             </div>
 
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-slate-900">2. Trigger: Message</span>
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[11px] text-slate-700 space-y-1">
-                <p>• <strong>Contains:</strong> <code className="bg-white px-1 py-0.5 rounded text-emerald-700 font-bold">debited, credited, spent, received, A/C, INR, Rs</code></p>
-                <p>• <strong>Run Immediately:</strong> Select karein</p>
+            <div className="space-y-2">
+              <span className="text-sm font-bold text-slate-900">2. Trigger: Message</span>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1">
+                <p>• <strong>Message Contains:</strong> <code className="bg-white px-1.5 py-0.5 rounded text-emerald-700 font-bold border border-slate-200">debited, credited, spent, received, A/C, INR, Rs</code></p>
+                <p>• <strong>Run Immediately:</strong> Select karein (Don&apos;t ask before running)</p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <span className="text-xs font-bold text-slate-900">3. Action: Get Contents of URL</span>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5 text-xs">
+              <span className="text-sm font-bold text-slate-900">3. Action: Get Contents of URL</span>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 text-xs">
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold">Webhook URL</span>
-                  <div className="flex items-center space-x-1.5 mt-0.5">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold">Webhook URL</span>
+                  <div className="flex items-center space-x-2 mt-1">
                     <input
                       readOnly
                       value={typeof window !== 'undefined' ? `${window.location.origin}/api/sms` : 'https://your-domain.vercel.app/api/sms'}
-                      className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-[11px] font-mono text-emerald-700 font-bold"
+                      className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-mono text-emerald-700 font-bold"
                     />
                     <button
                       onClick={() => {
@@ -940,25 +1109,26 @@ export default function CashFlowApp() {
                         setCopiedUrl(true);
                         setTimeout(() => setCopiedUrl(false), 2000);
                       }}
-                      className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-700"
+                      className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 flex items-center gap-1 font-semibold"
                     >
                       {copiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                      <span>Copy</span>
                     </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Method</span>
-                    <p className="bg-white p-1 rounded-md border border-slate-200 text-[11px] font-bold font-mono text-center">POST</p>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold">Method</span>
+                    <p className="bg-white p-2 rounded-lg border border-slate-200 text-xs font-bold font-mono text-center">POST</p>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Header (x-api-key)</span>
-                    <div className="flex items-center space-x-1 mt-0.5">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold">Header (x-api-key)</span>
+                    <div className="flex items-center space-x-1.5 mt-1">
                       <input
                         readOnly
                         value="cf_secret_2026"
-                        className="w-full bg-white border border-slate-200 rounded p-1 text-[10px] font-mono text-slate-800 font-bold"
+                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-mono text-slate-800 font-bold"
                       />
                       <button
                         onClick={() => {
@@ -966,17 +1136,17 @@ export default function CashFlowApp() {
                           setCopiedKey(true);
                           setTimeout(() => setCopiedKey(false), 2000);
                         }}
-                        className="p-1 bg-white border border-slate-200 rounded text-slate-700"
+                        className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700"
                       >
-                        {copiedKey ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                        {copiedKey ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold">Request Body (JSON)</span>
-                  <pre className="mt-0.5 p-2 bg-white rounded border border-slate-200 text-[10px] font-mono text-slate-800">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold">Request Body (JSON)</span>
+                  <pre className="mt-1 p-2.5 bg-white rounded-lg border border-slate-200 text-xs font-mono text-slate-800">
 {`{
   "text": "Shortcut Input",
   "sender": "Sender"
@@ -986,16 +1156,16 @@ export default function CashFlowApp() {
               </div>
             </div>
 
-            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-900 flex items-center space-x-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-              <span>Har bank transaction SMS yahan live auto-sync hoga.</span>
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center space-x-2.5">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+              <span>Setup complete! Har bank transaction SMS yahan live auto-sync hoga.</span>
             </div>
           </div>
         )}
       </main>
 
-      {/* 📱 NATIVE iOS STYLE FIXED BOTTOM NAVIGATION BAR */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200/90 z-40 shadow-lg">
+      {/* 📱 NATIVE iOS STYLE FIXED BOTTOM NAVIGATION BAR (MOBILE ONLY: md:hidden) */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-slate-200/90 z-40 shadow-lg md:hidden">
         <div className="max-w-lg mx-auto px-2 h-16 flex items-center justify-around">
           <button
             onClick={() => setActiveTab('flow')}
