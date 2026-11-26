@@ -146,24 +146,18 @@ export default function CashFlowApp() {
         query += `&startDate=${fromD}&endDate=${toD}`;
       }
 
-      const [txRes, statsRes, budgetRes, accRes] = await Promise.all([
-        fetch(`/api/transactions?${query}`),
-        fetch(`/api/stats?${query}`),
-        fetch('/api/budgets'),
-        fetch('/api/my-accounts')
-      ]);
+      // Fast single round-trip API call
+      const res = await fetch(`/api/dashboard?${query}`);
+      const data = await res.json();
 
-      const txData = await txRes.json();
-      const statsData = await statsRes.json();
-      const budgetData = await budgetRes.json();
-      const accData = await accRes.json();
-
-      if (txData.success) setTransactions(txData.transactions);
-      if (statsData.success) setStats(statsData.stats);
-      if (budgetData.success) setBudgets(budgetData.budgets);
-      if (accData.success) setMyAccounts(accData.accounts);
+      if (data.success) {
+        setTransactions(data.transactions || []);
+        setStats(data.stats || null);
+        setBudgets(data.budgets || []);
+        setMyAccounts(data.accounts || []);
+      }
     } catch (err) {
-      console.error('Error fetching data:', err);
+      console.error('Error fetching dashboard data:', err);
     } finally {
       setLoading(false);
     }
@@ -176,7 +170,6 @@ export default function CashFlowApp() {
         const data = await res.json();
         if (data.authenticated) {
           setIsAuthed(true);
-          fetchData(selectedPeriod, customFromDate, customToDate);
         } else {
           setIsAuthed(false);
         }
@@ -214,7 +207,6 @@ export default function CashFlowApp() {
       if (data.success) {
         setIsAuthed(true);
         setAuthPassword('');
-        await fetchData(selectedPeriod, customFromDate, customToDate);
       } else {
         setAuthError(data.error || 'Galat Username ya Password!');
       }
@@ -1002,9 +994,22 @@ export default function CashFlowApp() {
                   </div>
                 </div>
 
-                {/* Transactions Table / Empty State */}
+                {/* Transactions Table / Empty State / Loading State */}
                 <div className="divide-y divide-slate-100 flex-1 overflow-y-auto max-h-[560px] pr-1">
-                  {filteredTransactions.length === 0 ? (
+                  {loading && transactions.length === 0 ? (
+                    <div className="py-8 px-4 space-y-3">
+                      {[1, 2, 3, 4].map(i => (
+                        <div key={i} className="flex items-center space-x-3 p-2 rounded-xl animate-pulse bg-slate-50/50">
+                          <div className="h-9 w-9 rounded-xl bg-slate-200 flex-shrink-0" />
+                          <div className="flex-1 space-y-1.5 min-w-0">
+                            <div className="h-3.5 bg-slate-200 rounded w-1/3" />
+                            <div className="h-2.5 bg-slate-100 rounded w-1/2" />
+                          </div>
+                          <div className="h-4 bg-slate-200 rounded w-16 flex-shrink-0" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : filteredTransactions.length === 0 ? (
                     <div className="text-center py-16 px-4 space-y-3">
                       <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
                         <Inbox className="h-6 w-6" />
