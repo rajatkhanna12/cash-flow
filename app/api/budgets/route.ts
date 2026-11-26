@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getBudgets, saveBudgets } from '@/lib/db';
+import { isAuthenticated } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!isAuthenticated(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const budgets = await getBudgets();
     return NextResponse.json({ success: true, budgets });
@@ -11,6 +15,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isAuthenticated(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const body = await req.json();
     if (!Array.isArray(body.budgets)) {

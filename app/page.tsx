@@ -29,7 +29,13 @@ import {
   Building2,
   Inbox,
   Pencil,
-  FileText
+  FileText,
+  Lock,
+  Unlock,
+  KeyRound,
+  LogOut,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Transaction, CashFlowStats, CategoryBudget, ReportingPeriod, MyAccount } from '@/lib/types';
 
@@ -116,6 +122,13 @@ export default function CashFlowApp() {
   });
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // 🔐 Authentication State
+  const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
+  const [authPin, setAuthPin] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [showPinText, setShowPinText] = useState(false);
+
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
@@ -155,8 +168,66 @@ export default function CashFlowApp() {
   };
 
   useEffect(() => {
-    fetchData(selectedPeriod, customFromDate, customToDate);
-  }, [selectedPeriod]);
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/auth');
+        const data = await res.json();
+        if (data.authenticated) {
+          setIsAuthed(true);
+          fetchData(selectedPeriod, customFromDate, customToDate);
+        } else {
+          setIsAuthed(false);
+        }
+      } catch {
+        setIsAuthed(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    if (isAuthed) {
+      fetchData(selectedPeriod, customFromDate, customToDate);
+    }
+  }, [selectedPeriod, isAuthed]);
+
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!authPin.trim()) {
+      setAuthError('Kripya PIN ya Password enter karein');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: authPin.trim() })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsAuthed(true);
+        setAuthPin('');
+        await fetchData(selectedPeriod, customFromDate, customToDate);
+      } else {
+        setAuthError(data.error || 'Galat PIN / Password!');
+      }
+    } catch {
+      setAuthError('Connection error, dobara try karein');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth', { method: 'DELETE' });
+      setIsAuthed(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handlePeriodChange = (period: ReportingPeriod) => {
     setSelectedPeriod(period);
@@ -348,6 +419,129 @@ export default function CashFlowApp() {
     }).format(amt);
   };
 
+  // 🔒 Loading / Checking Auth State
+  if (isAuthed === null) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-9 w-9 border-2 border-emerald-600 border-t-transparent mb-3" />
+        <p className="text-xs text-slate-500 font-semibold">Security Vault Checking...</p>
+      </div>
+    );
+  }
+
+  // 🔒 LOGIN / PASSCODE LOCK SCREEN
+  if (isAuthed === false) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 select-none">
+        <div className="w-full max-w-sm bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-5 text-center">
+          <div className="flex flex-col items-center space-y-2">
+            <div className="h-14 w-14 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-inner">
+              <Lock className="h-7 w-7 stroke-[2.2]" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-slate-900 tracking-tight">CashFlow Guard</h1>
+              <p className="text-xs text-slate-500 font-medium">Personal Financial Vault Protected</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <div className="relative flex items-center">
+                <input
+                  type={showPinText ? 'text' : 'password'}
+                  required
+                  autoFocus
+                  inputMode="numeric"
+                  placeholder="Enter 4-Digit PIN / Password"
+                  value={authPin}
+                  onChange={e => {
+                    setAuthPin(e.target.value);
+                    if (authError) setAuthError('');
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-center text-lg font-bold tracking-widest text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPinText(!showPinText)}
+                  className="absolute right-3 text-slate-400 hover:text-slate-600 p-1"
+                >
+                  {showPinText ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+
+              {authError && (
+                <div className="mt-2 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl py-1.5 px-3">
+                  {authError}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Numeric Keypad for Mobile Screen */}
+            <div className="grid grid-cols-3 gap-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => {
+                    setAuthPin(prev => (prev.length < 10 ? prev + num : prev));
+                    if (authError) setAuthError('');
+                  }}
+                  className="py-3 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-800 font-bold text-base rounded-2xl border border-slate-200/80 transition shadow-2xs"
+                >
+                  {num}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setAuthPin('')}
+                className="py-3 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-500 font-bold text-xs rounded-2xl border border-slate-200 transition"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthPin(prev => (prev.length < 10 ? prev + '0' : prev));
+                  if (authError) setAuthError('');
+                }}
+                className="py-3 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-800 font-bold text-base rounded-2xl border border-slate-200/80 transition shadow-2xs"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthPin(prev => prev.slice(0, -1))}
+                className="py-3 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 font-bold text-sm rounded-2xl border border-slate-200 transition"
+              >
+                ⌫
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              disabled={authLoading}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold py-3 rounded-2xl text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2"
+            >
+              {authLoading ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Unlock className="h-4 w-4" />
+                  <span>Unlock Dashboard</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="pt-1 border-t border-slate-100 text-[11px] text-slate-400">
+            <span className="font-semibold text-slate-600">Default PIN:</span> <code className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-bold">2026</code>
+            <p className="mt-0.5 text-[10px] text-slate-400">Vercel Environment Variables mein <code className="font-mono">APP_PIN</code> se change kar sakte hain.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const inflow = stats?.totalInflow || 0;
   const outflow = stats?.totalOutflow || 0;
   const net = stats?.netCashFlow || 0;
@@ -449,6 +643,14 @@ export default function CashFlowApp() {
               className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 active:scale-95 transition"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-emerald-600' : ''}`} />
+            </button>
+            <button
+              onClick={handleLogout}
+              title="Lock / Logout"
+              className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50 active:scale-95 transition flex items-center gap-1"
+            >
+              <Lock className="h-4 w-4" />
+              <span className="hidden sm:inline text-xs font-semibold">Lock</span>
             </button>
           </div>
         </div>

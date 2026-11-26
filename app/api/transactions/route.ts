@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions, addTransaction, deleteTransaction, updateTransaction, clearAllTransactions } from '@/lib/db';
 import { ReportingPeriod } from '@/lib/types';
+import { isAuthenticated } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
+  if (!isAuthenticated(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const { searchParams } = new URL(req.url);
     const period = searchParams.get('period') as ReportingPeriod | undefined;
@@ -17,6 +21,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isAuthenticated(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const body = await req.json();
     if (!body.amount || !body.type || !body.merchant) {
@@ -44,6 +51,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  if (!isAuthenticated(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const body = await req.json();
     if (!body.id) {
@@ -62,6 +72,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!isAuthenticated(req)) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const { searchParams } = new URL(req.url);
     const clearAll = searchParams.get('all') === 'true';
