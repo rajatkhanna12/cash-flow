@@ -1,0 +1,134 @@
+{
+  "transactions": [
+    {
+      "id": "seed-1",
+      "amount": 85000,
+      "type": "inflow",
+      "category": "Salary & Income",
+      "merchant": "Monthly Salary / Client Retainer",
+      "account": "A/C **1234",
+      "reference": "433100000001",
+      "date": "2026-11-06T04:56:17.818Z",
+      "created_at": "2026-11-06T04:56:17.824Z",
+      "raw_sms": "HDFC Bank: Rs 85,000.00 credited to a/c **1234 on 06-Nov-26. Salary Credit."
+    },
+    {
+      "id": "seed-2",
+      "amount": 15000,
+      "type": "inflow",
+      "category": "Salary & Income",
+      "merchant": "Freelance Project Payout",
+      "account": "A/C **1234",
+      "reference": "433100000002",
+      "date": "2026-11-16T04:56:17.824Z",
+      "created_at": "2026-11-16T04:56:17.824Z",
+      "raw_sms": "Your A/C **1234 is credited by Rs 15,000.00 from Upwork VPA."
+    },
+    {
+      "id": "seed-3",
+      "amount": 7200,
+      "type": "outflow",
+      "category": "Food & Dining",
+      "merchant": "Swiggy & Zomato Orders",
+      "account": "A/C **1234",
+      "reference": "433100000003",
+      "date": "2026-11-24T04:56:17.824Z",
+      "created_at": "2026-11-24T04:56:17.824Z",
+      "raw_sms": "Rs 450.00 debited from HDFC A/C **1234 to SWIGGY. Ref 433100000003"
+    },
+    {
+      "id": "seed-4",
+      "amount": 5400,
+      "type": "outflow",
+      "category": "Groceries",
+      "merchant": "Blinkit & Zepto",
+      "account": "A/C **1234",
+      "reference": "433100000004",
+      "date": "2026-11-22T04:56:17.824Z",
+      "created_at": "2026-11-22T04:56:17.824Z",
+      "raw_sms": "Sent Rs. 650.00 to Blinkit from A/C **1234"
+    },
+    {
+      "id": "seed-5",
+      "amount": 3200,
+      "type": "outflow",
+      "category": "Travel & Fuel",
+      "merchant": "Uber Rides & Petrol",
+      "account": "A/C **1234",
+      "reference": "433100000005",
+      "date": "2026-11-20T04:56:17.824Z",
+      "created_at": "2026-11-20T04:56:17.824Z",
+      "raw_sms": "INR 420.00 debited from A/C **1234 at UBER INDIA."
+    },
+    {
+      "id": "seed-6",
+      "amount": 8900,
+      "type": "outflow",
+      "category": "Shopping",
+      "merchant": "Amazon India",
+      "account": "A/C **1234",
+      "reference": "433100000006",
+      "date": "2026-11-18T04:56:17.824Z",
+      "created_at": "2026-11-18T04:56:17.824Z",
+      "raw_sms": "Paid Rs 2,499.00 to Amazon Pay from A/C **1234"
+    },
+    {
+      "id": "seed-7",
+      "amount": 3100,
+      "type": "outflow",
+      "category": "Bills & Utilities",
+      "merchant": "Electricity & Wifi Recharge",
+      "account": "A/C **1234",
+      "reference": "433100000007",
+      "date": "2026-11-11T04:56:17.824Z",
+      "created_at": "2026-11-11T04:56:17.824Z",
+      "raw_sms": "Airtel Broadband bill payment of Rs 1,179 debited from A/C **1234"
+    },
+    {
+      "id": "seed-8",
+      "amount": 1999,
+      "type": "outflow",
+      "category": "Entertainment & Subs",
+      "merchant": "Netflix & Spotify",
+      "account": "A/C **1234",
+      "reference": "433100000008",
+      "date": "2026-11-08T04:56:17.824Z",
+      "created_at": "2026-11-08T04:56:17.824Z",
+      "raw_sms": "Your A/C **1234 is debited with Rs 649 for Netflix subscription"
+    }
+  ],
+  "budgets": [
+    {
+      "category": "Food & Dining",
+      "monthly_limit": 8000
+    },
+    {
+      "category": "Groceries",
+      "monthly_limit": 6000
+    },
+    {
+      "category": "Travel & Fuel",
+      "monthly_limit": 4000
+    },
+    {
+      "category": "Shopping",
+      "monthly_limit": 7000
+    },
+    {
+      "category": "Bills & Utilities",
+      "monthly_limit": 5000
+    },
+    {
+      "category": "Entertainment & Subs",
+      "monthly_limit": 2000
+    },
+    {
+      "category": "Health & Medical",
+      "monthly_limit": 3000
+    },
+    {
+      "category": "Other Expenses",
+      "monthly_limit": 5000
+    }
+  ]
+}
